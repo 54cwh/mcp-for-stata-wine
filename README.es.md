@@ -173,7 +173,7 @@ Descubrimos que muchos investigadores estan usando Codex como su agente, por lo 
 
 Imagino que los investigadores no estan usando Codex CLI sino Codex Desktop, asi que podemos decir que es mas facil configurar MCP-for-Stata que otros agentes.
 
-Solo necesitas decir `Install MCP-for-Stata for yourself globally from https://www.statamcp.com or visit https://github.com/SepineTam/mcp-for-stata` y luego reiniciar tu Codex Desktop despues de que diga listo.
+Solo necesitas decir `Install MCP-for-Stata for yourself globally from https://aidea-labs.com/open/projects/mcp-for-stata or visit https://github.com/SepineTam/mcp-for-stata` y luego reiniciar tu Codex Desktop despues de que diga listo.
 
 Ademas, si deseas instalarlo manualmente, aqui hay dos formas:
 
@@ -288,7 +288,7 @@ Summary: 12 passed, 0 failed, 0 warning(s), 0 skipped
 
 > Notas:
 > 1. Si te encuentras en China y la descarga de paquetes es lenta, consulta la [solucion](docs/troubleshooting.md#package-download-is-slow-or-fails).
-> 2. Claude es la mejor opcion para MCP-for-Stata, para usuarios de chino, recomiendo usar DeepSeek como proveedor de modelo ya que es economico y potente, ademas tiene la puntuacion mas alta entre los proveedores de China, si te interesa, visita el reporte [How to use StataMCP improve your social science research](https://statamcp.com/reports/2025/09/21/stata_mcp_a_research_report_on_ai_assisted_empirical_research).
+> 2. Claude es la mejor opcion para MCP-for-Stata, para usuarios de chino, recomiendo usar DeepSeek como proveedor de modelo ya que es economico y potente, ademas tiene la puntuacion mas alta entre los proveedores de China, si te interesa, visita el reporte [How to use StataMCP improve your social science research](https://aidea-labs.com/open/projects/mcp-for-stata/reports/2025/09/21/stata_mcp_a_research_report_on_ai_assisted_empirical_research).
 
 ## Comparacion
 

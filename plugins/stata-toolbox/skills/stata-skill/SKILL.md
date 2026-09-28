@@ -9,7 +9,7 @@ metadata:
 # MCP-for-Stata
 > Official plugin for MCP-for-Stata maintained in collaboration with [SepineTam](https://github.com/sepinetam).
 
-[MCP-for-Stata](https://statamcp.com) is an MCP (Model Context Protocol) server that exposes Stata's statistical and econometric capabilities to LLMs. This toolset supports executing do-files, querying data file structures, installing ado packages, reading Stata logs, and looking up command documentation. 
+[MCP-for-Stata](https://aidea-labs.com/open/projects/mcp-for-stata) (Stata-MCP) is an MCP (Model Context Protocol) server that exposes Stata's statistical and econometric capabilities to LLMs. This toolset supports executing do-files, querying data file structures, installing ado packages, reading Stata logs, and looking up command documentation.
 
 ## Prerequisites
 
@@ -198,5 +198,5 @@ the user exactly what to install manually.
 | esttab example | `@examples/esttab-senior-guidance.md` | Senior-level example for exporting regression tables |
 | graph export example | `@examples/graph-export-guidance.md` | Defaults and pitfalls example for exporting figures |
 | Documentation | [sepinetam.github.io/mcp-for-stata](https://sepinetam.github.io/mcp-for-stata) | Full user documentation |
-| Homepage | [statamcp.com](https://statamcp.com) | Project homepage |
+| Homepage | [MCP-for-Stata official website](https://aidea-labs.com/open/projects/mcp-for-stata) | Project homepage |
 | Source Code | [github.com/sepinetam/mcp-for-stata](https://github.com/sepinetam/mcp-for-stata) | GitHub repository |

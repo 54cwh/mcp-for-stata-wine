@@ -7,7 +7,7 @@
     "email": "sepinetam@gmail.com",
     "url": "https://github.com/sepinetam"
   },
-  "homepage": "https://www.statamcp.com",
+  "homepage": "https://aidea-labs.com/open/projects/mcp-for-stata",
   "repository": "https://github.com/sepinetam/mcp-for-stata",
   "license": "AGPL-3.0",
   "keywords": ["stata", "mcp", "econometrics", "regression", "social-science", "computational-social-science"],
@@ -18,7 +18,7 @@
     "shortDescription": "Run Stata statistical analysis from Codex-compatible MCP clients.",
     "longDescription": "Connects Codex to Stata for regression analysis, data processing, ado package management, and log reading. Supports CSV, DTA, XLSX, and SPSS data formats.",
     "category": "Data Science",
-    "websiteURL": "https://www.statamcp.com",
+    "websiteURL": "https://aidea-labs.com/open/projects/mcp-for-stata",
     "defaultPrompt": "Run a regression analysis using Stata"
   }
 }

@@ -73,7 +73,7 @@ The plugin system enables one-command installation of complex development enviro
     "email": "sepinetam@gmail.com",
     "url": "https://www.sepinetam.com"
   },
-  "homepage": "https://statamcp.com",
+  "homepage": "https://aidea-labs.com/open/projects/mcp-for-stata",
   "repository": "https://github.com/sepinetam/mcp-for-stata",
   "license": "AGPL-3.0",
   "keywords": ["stata", "econometrics", "empirical analysis"],

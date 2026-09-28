@@ -177,7 +177,7 @@ claude plugin install stata-toolbox -s project
 
 我认为研究人员使用的不是 Codex CLI 而是 Codex Desktop，因此我们可以说配置 MCP-for-Stata 比其他智能体更简单。
 
-你只需要说 `Install MCP-for-Stata for yourself globally from https://www.statamcp.com or visit https://github.com/SepineTam/mcp-for-stata`，然后在它显示准备就绪后重启你的 Codex Desktop 即可。
+你只需要说 `Install MCP-for-Stata for yourself globally from https://aidea-labs.com/open/projects/mcp-for-stata or visit https://github.com/SepineTam/mcp-for-stata`，然后在它显示准备就绪后重启你的 Codex Desktop 即可。
 
 此外，如果你想手动安装，有以下两种方式：
 
@@ -292,7 +292,7 @@ Summary: 12 passed, 0 failed, 0 warning(s), 0 skipped
 
 > 注意：
 > 1. 如果你位于中国并遇到下载缓慢的问题，请参考[解决方案](docs/troubleshooting.zh.md#包下载缓慢或失败)。
-> 2. Claude 是 MCP-for-Stata 的最佳选择，对于中文用户，我推荐使用 DeepSeek 作为模型提供商，因为它性价比高且功能强大，在中国提供商中评分最高。如果你感兴趣，请访问报告[如何使用 StataMCP 提升你的社会科学研究](https://statamcp.com/reports/2025/09/21/stata_mcp_a_research_report_on_ai_assisted_empirical_research)。
+> 2. Claude 是 MCP-for-Stata 的最佳选择，对于中文用户，我推荐使用 DeepSeek 作为模型提供商，因为它性价比高且功能强大，在中国提供商中评分最高。如果你感兴趣，请访问报告[如何使用 StataMCP 提升你的社会科学研究](https://aidea-labs.com/open/projects/mcp-for-stata/reports/2025/09/21/stata_mcp_a_research_report_on_ai_assisted_empirical_research)。
 
 ## 对比
 

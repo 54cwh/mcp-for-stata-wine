@@ -51,15 +51,21 @@ theme:
 
 extra:
   social:
+    - icon: material/home
+      link: https://aidea-labs.com/open/projects/mcp-for-stata
+      name: MCP-for-Stata official website
+    - icon: material/web
+      link: https://aidea-labs.com
+      name: AIdeaLabs
     - icon: fontawesome/brands/github
-      link: https://github.com/sepinetam/stata-mcp
+      link: https://github.com/sepinetam/mcp-for-stata
       name: GitHub
     - icon: material/email
       link: mailto:sepinetam@gmail.com
       name: E-mail
 
 copyright: &copyright |
-  Copyright &copy; 2025 - present <a href="https://github.com/sepinetam">Sepine Tam</a>. All Right Reserved. 
+  Copyright &copy; 2025 - present <a href="https://github.com/sepinetam">Sepine Tam</a> and <a href="https://aidea-labs.com">AIdea Labs</a>. All Right Reserved.
 
 plugins:
   - search
@@ -72,8 +78,11 @@ plugins:
           name: 简体中文
           nav_translations:
             Installation: 安装指南
+            Product Website: 产品官网
 
 nav:
+  - Product Website: https://aidea-labs.com/open/projects/mcp-for-stata
+  - AIdeaLabs: https://aidea-labs.com
   - Home: index.md
   - Overview: overview.md
   - Installation: install.md

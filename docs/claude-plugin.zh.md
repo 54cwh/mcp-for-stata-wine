@@ -73,7 +73,7 @@ Claude Plugin 是 Claude Code 中引入的插件系统，允许开发者打包�
     "email": "sepinetam@gmail.com",
     "url": "https://www.sepinetam.com"
   },
-  "homepage": "https://statamcp.com",
+  "homepage": "https://aidea-labs.com/open/projects/mcp-for-stata",
   "repository": "https://github.com/sepinetam/mcp-for-stata",
   "license": "AGPL-3.0",
   "keywords": ["stata", "econometrics", "empirical analysis"],

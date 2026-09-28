@@ -190,7 +190,7 @@ main() {
     echo ""
     echo "Please restart your AI client(s) for the changes to take effect."
     echo ""
-    echo "For more information, visit: https://www.statamcp.com or https://github.com/sepinetam/mcp-for-stata"
+    echo "For more information, visit: https://aidea-labs.com/open/projects/mcp-for-stata or https://github.com/sepinetam/mcp-for-stata"
     echo ""
 }
 

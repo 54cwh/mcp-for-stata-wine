@@ -1,5 +1,7 @@
 # MCP-for-Stata
 
+[产品官网](https://aidea-labs.com/open/projects/mcp-for-stata) · [AIdeaLabs](https://aidea-labs.com)
+
 第一次使用？从 [安装指南](install.md) 开始，选择安装方式并接入你的客户端。
 
 **将 Stata 集成到你的智能体中。**

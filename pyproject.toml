@@ -114,7 +114,7 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://www.aidea-labs.com/mcp-for-stata"
+Homepage = "https://aidea-labs.com/open/projects/mcp-for-stata"
 Documentation = "https://sepinetam.github.io/mcp-for-stata"
 Source = "https://github.com/sepinetam/mcp-for-stata"
 Issues = "https://github.com/sepinetam/mcp-for-stata/issues"

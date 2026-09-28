@@ -133,7 +133,7 @@ instructions = (
     "[GitHub](https://github.com/SepineTam/mcp-for-stata/issues). "
     f"{_version_hint}"
     "More information you could visit on "
-    "[Official website](https://www.statamcp.com) and "
+    "[Official website](https://aidea-labs.com/open/projects/mcp-for-stata) and "
     "[Documents](https://sepinetam.github.io/mcp-for-stata/)"
 )
 
@@ -150,7 +150,7 @@ audit_store = AuditStore(config.STATA_MCP_FOLDER.path)
 stata_mcp = MCPServer(
     name="stata-mcp",
     instructions=instructions,
-    website_url="https://www.statamcp.com",
+    website_url="https://aidea-labs.com/open/projects/mcp-for-stata",
     icons=_icons,
     middleware=[AuditMiddleware(audit_store)],
 )
