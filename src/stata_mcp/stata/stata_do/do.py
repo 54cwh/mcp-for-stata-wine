@@ -36,7 +36,8 @@ class StataDo:
                  cwd: Path = None,
                  monitors: Optional[List] = None,
                  audit_store: AuditStore | None = None,
-                 audit_interface: str = "runtime"):
+                 audit_interface: str = "runtime",
+                 is_wine: bool = False):
         """
         Initialize Stata executor
 
@@ -48,6 +49,7 @@ class StataDo:
             monitors: List of monitor instances (e.g., RAMMonitor, TimeoutMonitor)
             audit_store: Optional audit store. Defaults to the log artifact root.
             audit_interface: Interface label for standalone audit events.
+            is_wine: Whether Stata is a Windows build driven through Wine.
         """
         self.stata_cli = stata_cli
         self.log_file_path = log_file_path
@@ -56,6 +58,7 @@ class StataDo:
         else:
             from ...utils import get_os
             self.is_unix = get_os() in ["Darwin", "Linux"]
+        self.is_wine = bool(is_wine)
         self.cwd = cwd or Path.cwd()
         self.monitors = monitors or []
         self.IS_MONITOR = len(self.monitors) > 0
@@ -121,7 +124,14 @@ class StataDo:
                 run_id=audit_context.run.run_id,
                 attributes={"mode": "sync", "platform": "unix" if self.is_unix else "windows"},
             ):
-                if self.is_unix:
+                if self.is_wine:
+                    result = self._execute_wine(
+                        execution_path,
+                        log_file,
+                        is_replace,
+                        timeout,
+                    )
+                elif self.is_unix:
                     if self.IS_MONITOR:
                         result = self._execute_unix_like_with_monitors(
                             execution_path,
@@ -384,8 +394,8 @@ class StataDo:
     @classmethod
     def _create_windows_batch_file(
         cls,
-        dofile_path: Path,
-        log_file: Path,
+        dofile_path: Path | str,
+        log_file: Path | str,
         is_replace: bool,
     ) -> Path:
         """Atomically create and write a random Windows wrapper do-file."""
@@ -548,6 +558,81 @@ class StataDo:
                     logging.debug(f"Temporary batch file removed: {batch_file}")
                 except Exception as e:
                     logging.warning(f"Failed to remove temporary batch file {batch_file}: {str(e)}")
+
+    @staticmethod
+    def _to_wine_path(path: Path | str) -> str:
+        """Translate an absolute POSIX path into Wine's ``Z:`` notation.
+
+        Wine maps the host root to ``Z:\\``; a POSIX path passed inside a Stata
+        do-file would otherwise be resolved against ``C:`` and fail with r(603).
+        """
+        resolved = Path(path).resolve().as_posix()
+        if not resolved.startswith("/"):
+            raise ValueError(
+                f"Wine path translation requires an absolute POSIX path: {path}"
+            )
+        return f"Z:{resolved}"
+
+    def _execute_wine(
+        self,
+        dofile_path: Path,
+        log_file: Path,
+        is_replace: bool = True,
+        timeout: float | None = None,
+    ) -> Dict[str, Path]:
+        """Execute a Windows Stata build through Wine in batch mode.
+
+        Wine-hosted Stata cannot read stdin, so this mirrors ``_execute_windows``
+        but (a) passes an argv list without a shell and (b) rewrites every path
+        in the wrapper do-file to ``Z:/...``. The returned log path stays POSIX
+        so ``read_log`` and the audit store keep working unchanged.
+        """
+        batch_file = self._create_windows_batch_file(
+            self._to_wine_path(dofile_path),
+            self._to_wine_path(log_file),
+            is_replace,
+        )
+        proc: Optional[subprocess.Popen] = None
+        try:
+            cmd = [self.STATA_CLI, "/e", "do", self._to_wine_path(batch_file)]
+            logging.info("Launching Stata via Wine: %s in cwd %s", cmd, self.cwd)
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                shell=False,
+                cwd=self.cwd,
+            )
+
+            for monitor in self.monitors:
+                monitor.start(proc)
+
+            _, stderr = proc.communicate(timeout=timeout)
+
+            if proc.returncode != 0:
+                logging.error(f"Stata execution failed under Wine: {stderr}")
+                raise RuntimeError(f"Wine Stata execution failed: {stderr}")
+            logging.info(
+                "Stata execution completed successfully under Wine. Log file: %s",
+                log_file,
+            )
+            return {"text": log_file}
+        except subprocess.TimeoutExpired as error:
+            logging.warning(f"Stata execution timed out after {timeout:g} seconds")
+            raise self._timeout_error(timeout) from error
+        finally:
+            for monitor in self.monitors:
+                try:
+                    monitor.stop()
+                except Exception as e:
+                    logging.warning(f"Monitor stop failed: {e}")
+            self._cleanup_process(proc)
+            if batch_file.exists():
+                try:
+                    batch_file.unlink()
+                except Exception as e:
+                    logging.warning(f"Failed to remove temporary batch file {batch_file}: {e}")
 
     def _execute_unix_like_with_monitors(
         self,

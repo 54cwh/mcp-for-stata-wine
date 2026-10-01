@@ -23,6 +23,7 @@ class RuntimeContext:
     cwd: Path
     stata_cli: str | None
     is_unix: bool
+    is_wine: bool
 
 
 def create_runtime_context(
@@ -41,4 +42,5 @@ def create_runtime_context(
         cwd=config.WORKING_DIR,
         stata_cli=stata_cli,
         is_unix=config.IS_UNIX,
+        is_wine=config.IS_WINE,
     )

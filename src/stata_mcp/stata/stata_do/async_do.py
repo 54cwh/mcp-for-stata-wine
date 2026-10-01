@@ -47,7 +47,7 @@ class AsyncStataDo(StataDo):
         Returns:
             Dict[str, Path]: Generated log file paths.
         """
-        if self.IS_MONITOR or not self.is_unix:
+        if self.IS_MONITOR or not self.is_unix or self.is_wine:
             return await asyncio.to_thread(
                 self.execute_dofile,
                 dofile_path,

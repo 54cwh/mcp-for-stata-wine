@@ -1140,8 +1140,27 @@ class Config:
     def IS_UNIX(self) -> bool:
         return self.SYSTEM_OS.lower() in ["darwin", "linux"]
 
+    @property
+    def IS_WINE(self) -> bool:
+        """Whether Stata is a Windows build driven through Wine on this host.
+
+        Wine routes the host filesystem through the ``Z:`` drive and ignores
+        stdin, so the executor must use batch mode and translate paths.
+        """
+        return self._get_config_value(
+            config_keys=["STATA", "IS_WINE"],
+            env_var="STATA_MCP__IS_WINE",
+            default=False,
+            converter=self._to_bool,
+            validator=lambda x: isinstance(x, bool),
+        )
+
     @cached_property
     def STATA_CLI(self) -> str:
+        env_cli = self._clean_string_value(os.getenv("STATA_MCP__STATA_CLI"))
+        if env_cli:
+            return env_cli
+
         cached = self.config.get("STATA", {}).get("STATA_CLI", None)
         if cached:
             return cached

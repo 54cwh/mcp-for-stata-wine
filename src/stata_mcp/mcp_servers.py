@@ -166,8 +166,11 @@ def _load_help_cls():
     """Lazy-load and cache the Stata help provider."""
     global _help_cls
 
-    if not config.IS_UNIX:
-        raise RuntimeError("The help tool is only available on Unix-like platforms.")
+    if not config.IS_UNIX or getattr(config, "IS_WINE", False):
+        raise RuntimeError(
+            "The help tool is only available on Unix-like platforms "
+            "with a native Stata."
+        )
 
     if _help_cls is None:
         from .stata import StataHelp
@@ -470,6 +473,7 @@ def _sync_stata_do(
         is_unix=config.IS_UNIX,  # Whether the OS is Unix-like
         cwd=config.WORKING_DIR,
         monitors=request.monitors,
+        is_wine=getattr(config, "IS_WINE", False),
     )
 
     # Execute the do-file and get log file path
@@ -532,6 +536,7 @@ async def _async_stata_do(
         is_unix=config.IS_UNIX,
         cwd=config.WORKING_DIR,
         monitors=request.monitors,
+        is_wine=getattr(config, "IS_WINE", False),
     )
 
     logging.info("Try to running dofile.")
@@ -992,7 +997,9 @@ def register_tools(server: MCPServer, profile: str = "all") -> None:
         )
 
     for name, meta in _TOOL_REGISTRY.items():
-        if meta.get("unix_only") and not config.IS_UNIX:
+        if meta.get("unix_only") and (
+            not config.IS_UNIX or getattr(config, "IS_WINE", False)
+        ):
             continue
         # BETA gate: hide Windows-only-buggy tools unless the beta flag is on.
         # get_data_info's MCP wrapper is broken on Windows (see registry note),

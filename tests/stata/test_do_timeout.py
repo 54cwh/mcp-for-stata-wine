@@ -241,6 +241,7 @@ def test_api_stata_do_uses_async_executor_when_enabled(
         is_unix=True,
         cwd=tmp_path,
         monitors=[],
+        is_wine=False,
     )
     executor.execute_dofile_async.assert_awaited_once_with(
         dofile.resolve(),

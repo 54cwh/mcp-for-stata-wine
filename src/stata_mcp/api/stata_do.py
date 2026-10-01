@@ -136,6 +136,7 @@ def _stata_do(
         is_unix=runtime.is_unix,
         cwd=runtime.cwd,
         monitors=monitors,
+        is_wine=getattr(runtime, "is_wine", False),
     )
 
     try:
