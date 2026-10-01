@@ -48,4 +48,9 @@ decimal_places = 3
 hash_length = 12
 
 [STATA]
+# Command the server spawns to run Stata. Leave empty to auto-detect a native
+# install. For Wine, point this at the bundled bridge, e.g. "scripts/stata-wine".
 STATA_CLI = ""
+# Drive a *Windows* Stata build through Wine (Linux, and macOS without a native
+# build). Requires STATA_CLI to be a wine bridge script; see README "Wine Mode".
+IS_WINE = false

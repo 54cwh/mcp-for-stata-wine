@@ -12,6 +12,8 @@ Turn Claude Code, Codex, and other AI agents into an on-demand research assistan
 
 > Stata is a registered trademark of StataCorp LLC. This project is an independent community-developed tool and is not affiliated with, endorsed by, or sponsored by StataCorp LLC.
 
+> **Fork notice.** This repository is a fork of [SepineTam/stata-mcp](https://github.com/SepineTam/stata-mcp) that adds [Wine mode](#-wine-mode-windows-stata-on-linux-and-macos), so a Windows Stata build can be driven from Linux and macOS. It is licensed under AGPL-3.0, keeps the upstream copyright notices, and is neither affiliated with nor maintained by the upstream project. The `README.zh-CN.md` / `README.fr.md` / `README.es.md` files are the upstream translations and do not describe this fork.
+
 [![en](https://img.shields.io/badge/lang-English-red.svg)](README.md)
 [![cn](https://img.shields.io/badge/语言-中文-yellow.svg)](README.zh-CN.md)
 [![fr](https://img.shields.io/badge/langue-Français-blue.svg)](README.fr.md)
@@ -301,6 +303,95 @@ Summary: 12 passed, 0 failed, 0 warning(s), 0 skipped
 > Notes:
 > 1. If you are located in China and package downloads are slow, see the [solution](docs/troubleshooting.md#package-download-is-slow-or-fails).
 > 2. Claude is the best choice for MCP-for-Stata, for Chinese, I recommend to use DeepSeek as your model provider as it is cheap and powerful, also the score is highest in China provider, if you are increased in it, visit the report [How to use StataMCP improve your social science research](https://aidea-labs.com/open/projects/mcp-for-stata/reports/2025/09/21/stata_mcp_a_research_report_on_ai_assisted_empirical_research).
+
+## 🍷 Wine Mode (Windows Stata on Linux and macOS)
+
+Native Stata is not available on Linux (and not as a native build on Apple
+silicon), but a **Windows** Stata installed inside a [Wine](https://www.winehq.org/)
+prefix works for headless batch execution. Because that binary is a Windows GUI
+executable, it ignores stdin: the server switches to the `/e do` batch path and
+rewrites every path to Wine's `Z:` notation (Wine maps the host root `/` to `Z:\`).
+
+### 1. Install a Windows Stata in a Wine prefix
+
+Install Stata in Wine as usual, then locate the executable:
+
+```bash
+export WINEPREFIX="$HOME/.wine"
+find "$WINEPREFIX" -iname 'Stata*.exe'
+# e.g. .../drive_c/Program Files/Stata18/StataMP-64.exe
+```
+
+### 2. Point the server at the bundled wine bridge
+
+`scripts/stata-wine` launches that executable. Nothing is hard-coded: the Wine
+prefix, the executable and the Wine binary are all environment variables.
+
+```bash
+chmod +x scripts/stata-wine    # the file must be executable on your filesystem
+
+export STATA_MCP__IS_WINE=true                                    # use the Wine batch path
+export STATA_MCP__STATA_CLI="$PWD/scripts/stata-wine"             # instead of a native stata
+export STATA_MCP__WINE_PREFIX="$HOME/.wine"                       # default: $HOME/.wine
+export STATA_MCP__WINE_STATA_EXE="$WINEPREFIX/drive_c/Program Files/Stata18/StataMP-64.exe"
+```
+
+### 3. Register the MCP server
+
+Install this fork from Git (the `stata-mcp` package on PyPI is the upstream
+project and does **not** include Wine support):
+
+```jsonc
+{
+  "mcp": {
+    "servers": {
+      "stata-mcp": {
+        "type": "local",
+        "command": [
+          "uvx", "--from", "git+https://github.com/54cwh/mcp-for-stata-wine",
+          "stata-mcp", "server"
+        ],
+        "environment": {
+          "STATA_MCP__IS_WINE": "true",
+          "STATA_MCP__STATA_CLI": "/absolute/path/to/scripts/stata-wine",
+          "STATA_MCP__WINE_PREFIX": "/absolute/path/to/your/wineprefix",
+          "STATA_MCP__CWD": "/absolute/path/to/your/project"
+        }
+      }
+    }
+  }
+}
+```
+
+### Configuration reference
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `STATA_MCP__IS_WINE` | Use the Wine batch executor (`/e do`) | `false` |
+| `STATA_MCP__STATA_CLI` | Command the server spawns; the Wine bridge script | auto-detected native Stata |
+| `STATA_MCP__WINE_PREFIX` | Wine prefix holding the Windows Stata install | `$HOME/.wine` |
+| `STATA_MCP__WINE_STATA_EXE` | Windows Stata executable inside the prefix | `$WINEPREFIX/drive_c/Program Files/Stata18/StataMP-64.exe` |
+| `STATA_MCP__WINE` | Wine binary to run | `wine` |
+
+Every variable has an equivalent TOML key, so you can use
+`~/.statamcp/config.toml` or `./.statamcp/config.toml` instead of the
+environment; see [`config.example.toml`](config.example.toml):
+
+```toml
+[STATA]
+STATA_CLI = "/absolute/path/to/scripts/stata-wine"
+IS_WINE = true
+```
+
+### Limitations under Wine
+
+- The `help` tool is not registered (it requires a native Unix Stata);
+  `stata_do`, `get_data_info` and `read_log` work normally.
+- Only the text `.log` is produced; `.smcl` output is unavailable on the
+  Windows batch path.
+- Paths written **inside** a do-file must stay POSIX — the server translates
+  them to `Z:/...` for you. A hand-written `log using "/tmp/x"` still fails
+  with r(603).
 
 ## Comparison
 
