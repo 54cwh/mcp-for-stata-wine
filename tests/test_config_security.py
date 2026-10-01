@@ -195,6 +195,11 @@ def test_debug_config_file_ignores_user_and_project_config(
     user_config_dir.mkdir(parents=True)
     project_config_dir.mkdir(parents=True)
     monkeypatch.setattr("pathlib.Path.home", lambda: home_dir)
+    # Pin the platform so this test asserts "user and project configs are
+    # ignored" without depending on whether the host has a real Linux system
+    # config file. The debug+system combination is covered separately by
+    # test_linux_system_config_overrides_debug_config.
+    monkeypatch.setattr("platform.system", lambda: "Darwin")
     monkeypatch.chdir(project_dir)
 
     (user_config_dir / "config.toml").write_text(
@@ -223,6 +228,7 @@ MAX_ASYNC_DO = 7
     config = Config(config_file=debug_config)
 
     assert config.is_debug_config is True
+    assert config.project_config_file is None
     assert config.config_files == (debug_config,)
     assert config.MAX_ASYNC_DO == 7
 
