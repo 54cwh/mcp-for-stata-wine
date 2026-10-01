@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+#
+# Wine bridge: let MCP-for-Stata drive a Windows Stata build through Wine.
+#
+# Linux and macOS ship no native Stata, but a Windows Stata installed in a Wine
+# prefix works for headless batch execution. Point STATA_MCP__STATA_CLI at this
+# script and set STATA_MCP__IS_WINE=true so the server uses the `/e do` batch
+# path and translates paths to Wine's `Z:` notation.
+#
+# Usage:
+#   STATA_MCP__IS_WINE=true \
+#   STATA_MCP__STATA_CLI=/path/to/scripts/stata-wine \
+#   stata-mcp server
+#
+# Configuration (all optional; defaults shown):
+#   STATA_MCP__WINE_PREFIX     Wine prefix holding the Windows Stata install
+#                              (default: $HOME/.wine)
+#   STATA_MCP__WINE_STATA_EXE  Full path to the Windows Stata executable
+#                              (default: $WINEPREFIX/drive_c/Program Files/Stata18/StataMP-64.exe)
+#   STATA_MCP__WINE            Wine binary to run (default: wine)
+#
+# Tip: `find "$WINEPREFIX" -iname 'Stata*.exe'` locates the executable. The
+# 64-bit build (StataMP-64.exe / StataSE-64.exe) is strongly recommended.
+#
+# Note: this file must be executable. On filesystems that do not store POSIX
+# modes, run: chmod +x scripts/stata-wine
+
+set -euo pipefail
+
+WINE_BIN="${STATA_MCP__WINE:-wine}"
+export WINEPREFIX="${STATA_MCP__WINE_PREFIX:-$HOME/.wine}"
+STATA_EXE="${STATA_MCP__WINE_STATA_EXE:-$WINEPREFIX/drive_c/Program Files/Stata18/StataMP-64.exe}"
+
+if [[ ! -f "$STATA_EXE" ]]; then
+    echo "stata-wine: no Stata executable at '$STATA_EXE'." >&2
+    echo "stata-wine: set STATA_MCP__WINE_STATA_EXE (and STATA_MCP__WINE_PREFIX) to your install." >&2
+    exit 127
+fi
+
+exec "$WINE_BIN" "$STATA_EXE" "$@"
