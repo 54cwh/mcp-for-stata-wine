@@ -37,4 +37,13 @@ if [[ ! -f "$STATA_EXE" ]]; then
     exit 127
 fi
 
+# Stata's Windows build is a GUI binary: even in `/e` batch mode it maps windows
+# onto the X display, and the window manager focuses them — stealing focus from
+# whatever the user was doing. Run it on a throwaway Xvfb display so those
+# windows never reach the real one. Falls back to the plain display if Xvfb is
+# not installed.
+if command -v xvfb-run >/dev/null 2>&1; then
+    exec xvfb-run -a "$WINE_BIN" "$STATA_EXE" "$@"
+fi
+
 exec "$WINE_BIN" "$STATA_EXE" "$@"
