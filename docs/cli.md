@@ -127,11 +127,14 @@ stata-mcp doctor --json
 # Run only specific checks (repeatable)
 stata-mcp doctor --check stata --check python
 
+# Wine: verify the prefix, Windows Stata binary, wine, and xvfb-run
+stata-mcp doctor --check wine
+
 # Preview cleanup actions without deleting (cleanup checks only)
 stata-mcp doctor --check cleanup --dry-run
 ```
 
-Common check names include `stata`, `python`, and `cleanup`. The `--dry-run` flag is interpreted by cleanup-style checks and previews destructive operations instead of executing them; other checks ignore it.
+Common check names include `stata`, `python`, `wine`, and `cleanup`. The `stata_execution` check runs through the same executor as the server, so it works under Wine (where piping commands into Stata cannot work). The `--dry-run` flag is interpreted by cleanup-style checks and previews destructive operations instead of executing them; other checks ignore it.
 
 ### Verify Installation
 

@@ -104,3 +104,12 @@ def test_ado_roots_finds_install_and_user_ado(tmp_path: Path):
 
     assert program_files / "ado" in roots
     assert user_ado / "plus" in roots
+
+
+def test_ado_roots_includes_extra_help_paths(tmp_path: Path):
+    custom_ado = tmp_path / "project-ado"
+    custom_ado.mkdir()
+
+    roots = ado_roots(tmp_path / "prefix", extra_paths=(custom_ado,))
+
+    assert custom_ado in roots

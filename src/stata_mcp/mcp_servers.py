@@ -181,7 +181,11 @@ def _load_help_cls():
 
             help_kwargs = {
                 "stata_cli": None,
-                "help_roots": ado_roots(config.WINE_PREFIX, config.WINE_STATA_EXE),
+                "help_roots": ado_roots(
+                    config.WINE_PREFIX,
+                    config.WINE_STATA_EXE,
+                    config.HELP_ADDITIONAL_PATHS,
+                ),
             }
         else:
             help_kwargs = {"stata_cli": config.STATA_CLI}

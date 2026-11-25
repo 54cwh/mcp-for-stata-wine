@@ -13,9 +13,11 @@
 - **Run Status**: `stata_do` now returns `success` and `return_code` on every run. Batch Stata exits 0 even on failure, so the executor reads the last `r(NNN);` from the log; agents can branch without opening the log.
 - **Batch-mode Guard**: `findit` joins the GUI-only commands rejected in batch profiles.
 - **Wine cwd**: the Wine wrapper do-file now `cd`s into the project before opening logs, so absolute POSIX paths written inside a do-file (`log using "/tmp/x"`, `use "/home/..."`) resolve via `Z:` instead of failing with r(603).
+- **Help Paths**: `[HELP] ADDITIONAL_PATHS` / `STATA_MCP__HELP_ADDITIONAL_PATHS` adds ado directories to the Wine help index, covering community packages installed outside the default tree.
 - **Config**: `STATA_MCP__WINE_PREFIX` and `STATA_MCP__WINE_STATA_EXE` are now read by the server (previously only by `scripts/stata-wine`) to locate help files.
 
 ### Fixed
+- **Doctor on Wine**: `stata-mcp doctor` now resolves `STATA_MCP__STATA_CLI` like the rest of the server, runs its execution probe through `StataDo` (so Wine/Windows batch mode works), and adds a `wine` check for the prefix, Windows Stata binary, `wine`, and `xvfb-run`.
 - **Wine Silent Failure**: when Stata exits 0 but never writes the requested log (a wrapper syntax error), the executor now raises with the batch auto-log tail instead of reporting success.
 
 <details open>

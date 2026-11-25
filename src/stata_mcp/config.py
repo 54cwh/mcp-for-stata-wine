@@ -1057,6 +1057,18 @@ class Config:
         )
 
     @property
+    def HELP_ADDITIONAL_PATHS(self) -> tuple[Path, ...]:
+        """Extra ado directories scanned for help files (comma-separated)."""
+        values = self._get_config_value(
+            config_keys=["HELP", "ADDITIONAL_PATHS"],
+            env_var="STATA_MCP__HELP_ADDITIONAL_PATHS",
+            default=(),
+            converter=self._to_str_tuple,
+            validator=lambda x: isinstance(x, tuple),
+        )
+        return tuple(Path(value).expanduser() for value in values)
+
+    @property
     def IS_CACHE_HELP(self) -> bool:
         return self.get_help_config("api").is_cache
 

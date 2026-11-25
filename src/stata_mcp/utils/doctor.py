@@ -258,22 +258,17 @@ def _resolve_stata_cli(config: Any) -> tuple[str | None, str | None]:
         if env_path.exists():
             return str(env_path), "env"
 
-    config_cli = config.config.get("STATA", {}).get("STATA_CLI")
-    if config_cli:
-        config_path = Path(config_cli).expanduser()
-        if config_path.exists():
-            return str(config_path), "config"
-
+    # ``config.STATA_CLI`` already resolves STATA_MCP__STATA_CLI, the TOML
+    # value, and the platform finder; doctor used to skip all three.
     try:
-        from ..stata import StataFinder
-
-        finder_cli = StataFinder(None).STATA_CLI
-        if finder_cli:
-            finder_path = Path(finder_cli).expanduser()
-            if finder_path.exists():
-                return str(finder_path), "finder"
-    except (OSError, PermissionError, RuntimeError, ValueError):
+        resolved_cli = config.STATA_CLI
+    except Exception:
         return None, None
+
+    if resolved_cli:
+        resolved_path = Path(resolved_cli).expanduser()
+        if resolved_path.exists():
+            return str(resolved_path), "config"
 
     return None, None
 
@@ -300,7 +295,13 @@ def check_stata_cli(config: Any) -> CheckResult:
 
 
 def check_stata_execution(config: Any, stata_cli_path: str | None) -> CheckResult:
-    """Check whether Stata executable can run commands."""
+    """Check whether Stata can execute a do-file.
+
+    Delegates to ``StataDo`` so the check uses the same execution path as the
+    server: stdin on native Unix, ``/e do`` under Wine and on Windows. Piping
+    commands into a Wine-hosted Windows Stata would hang, which is why this
+    check is not platform-branched anymore.
+    """
     if not stata_cli_path:
         return CheckResult(
             name="stata_execution",
@@ -309,98 +310,134 @@ def check_stata_execution(config: Any, stata_cli_path: str | None) -> CheckResul
             details={},
         )
 
-    commands = 'display "Stata-MCP Doctor Test"\nexit, STATA\n'
+    probe = Path(config.STATA_MCP_FOLDER.TMP) / "doctor_test.do"
     start_time = time.monotonic()
-
     try:
-        if config.IS_UNIX:
-            process = subprocess.Popen(
-                [stata_cli_path],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                shell=False,
-            )
-            try:
-                process.communicate(input=commands, timeout=15)
-                return_code = process.returncode
-            finally:
-                if process.poll() is None:
-                    try:
-                        process.terminate()
-                    except OSError:
-                        pass
+        from ..stata import StataDo
 
-                    try:
-                        process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        try:
-                            process.kill()
-                        except OSError:
-                            pass
-                        try:
-                            process.wait(timeout=5)
-                        except (subprocess.TimeoutExpired, OSError):
-                            pass
-        else:
-            temp_do_file = config.STATA_MCP_DIRECTORY / "doctor_test.do"
-            try:
-                temp_do_file.write_text(commands, encoding="utf-8")
-            except (OSError, PermissionError) as error:
-                return CheckResult(
-                    name="stata_execution",
-                    status=CheckStatus.FAIL,
-                    message=f"temp file write failed: {error}",
-                    details={"temp_do_file": str(temp_do_file)},
-                    hint="Set STATA_MCP__CWD to a writable directory.",
-                )
-            try:
-                win_result = subprocess.run(
-                    f'"{stata_cli_path}" /e do "{temp_do_file}"',
-                    shell=True,
-                    timeout=15,
-                    check=False,
-                )
-            finally:
-                if temp_do_file.exists():
-                    try:
-                        temp_do_file.unlink()
-                    except OSError:
-                        pass
-            return_code = win_result.returncode
-    except subprocess.TimeoutExpired:
+        probe.parent.mkdir(parents=True, exist_ok=True)
+        probe.write_text('display "Stata-MCP Doctor Test"\n', encoding="utf-8")
+        executor = StataDo(
+            stata_cli=stata_cli_path,
+            log_file_path=config.STATA_MCP_FOLDER.LOG,
+            is_unix=config.IS_UNIX,
+            cwd=config.WORKING_DIR,
+            is_wine=getattr(config, "IS_WINE", False),
+            export_graphs=False,
+        )
+        result = executor.execute_dofile(
+            probe,
+            log_file_name="doctor_test",
+            enable_smcl=False,
+            timeout=15,
+        )
+        elapsed = round(time.monotonic() - start_time, 1)
+        log_text = Path(result["text"]).read_text(encoding="utf-8", errors="replace")
+        ok = bool(result.get("success")) and "stata-mcp doctor test" in log_text.lower()
+        return CheckResult(
+            name="stata_execution",
+            status=CheckStatus.PASS if ok else CheckStatus.FAIL,
+            message=f"{'OK' if ok else 'FAILED'} ({elapsed}s)",
+            details={
+                "elapsed_s": elapsed,
+                "return_code": result.get("return_code"),
+                "log": result["text"],
+            },
+            hint=None if ok else (
+                "Stata started but did not print the probe output. Inspect the "
+                "log; under Wine run `stata-mcp doctor --check wine` to verify "
+                "the prefix and executable."
+            ),
+        )
+    except Exception as error:
+        elapsed = round(time.monotonic() - start_time, 1)
+        timed_out = "timed out" in str(error).lower()
         return CheckResult(
             name="stata_execution",
             status=CheckStatus.FAIL,
-            message="timeout (>15s)",
-            details={},
-            hint="Stata execution timed out. Check license dialogs or blocked startup prompts.",
+            message=(
+                f"timeout (>15s, {elapsed}s total)" if timed_out
+                else f"execution error: {error}"
+            ),
+            details={"elapsed_s": elapsed},
+            hint=(
+                "Stata did not finish in 15s. Check license dialogs or blocked "
+                "startup prompts (under Wine, run `stata-mcp doctor --check wine`)."
+                if timed_out
+                else "Verify Stata installation and execution permissions."
+            ),
         )
-    except OSError as error:
+    finally:
+        probe.unlink(missing_ok=True)
+
+
+def check_wine(config: Any) -> CheckResult:
+    """Check the Wine prefix, Windows Stata binary, and helper binaries."""
+    if not getattr(config, "IS_WINE", False):
         return CheckResult(
-            name="stata_execution",
-            status=CheckStatus.FAIL,
-            message=f"execution error: {error}",
+            name="wine",
+            status=CheckStatus.SKIP,
+            message="not in Wine mode",
             details={},
-            hint="Verify Stata installation and execution permissions.",
         )
 
-    elapsed = round(time.monotonic() - start_time, 1)
-    is_ok = return_code == 0
+    prefix = Path(config.WINE_PREFIX).expanduser()
+    details: dict[str, Any] = {
+        "prefix": str(prefix),
+        "prefix_exists": prefix.is_dir(),
+    }
+    problems: list[str] = []
+    if not prefix.is_dir():
+        problems.append("wine prefix not found")
 
-    logger.info(
-        "Doctor stata_execution check: %s (%ss)",
-        "OK" if is_ok else "FAILED",
-        elapsed,
-    )
+    configured_exe = config.WINE_STATA_EXE
+    if configured_exe is not None:
+        stata_exe = Path(configured_exe).expanduser()
+    else:
+        candidates = sorted(
+            prefix.glob("drive_c/Program Files*/Stata*/Stata*.exe")
+        )
+        stata_exe = candidates[-1] if candidates else None
+
+    details["stata_exe"] = str(stata_exe) if stata_exe else None
+    details["stata_exe_exists"] = bool(stata_exe and stata_exe.is_file())
+    if not stata_exe or not stata_exe.is_file():
+        problems.append("Windows Stata executable not found")
+
+    details["wine"] = shutil.which("wine")
+    details["xvfb_run"] = shutil.which("xvfb-run")
+    if not details["wine"]:
+        problems.append("wine not found on PATH")
+
+    if problems:
+        return CheckResult(
+            name="wine",
+            status=CheckStatus.FAIL,
+            message="; ".join(problems),
+            details=details,
+            hint=(
+                "Set STATA_MCP__WINE_PREFIX and STATA_MCP__WINE_STATA_EXE, and "
+                "install wine. See README \"Wine Mode\"."
+            ),
+        )
+
+    if not details["xvfb_run"]:
+        return CheckResult(
+            name="wine",
+            status=CheckStatus.WARN,
+            message="ready, but xvfb-run is missing",
+            details=details,
+            hint=(
+                "Install xvfb so Wine Stata windows stay off the real display; "
+                "otherwise every run may steal focus."
+            ),
+        )
 
     return CheckResult(
-        name="stata_execution",
-        status=CheckStatus.PASS if is_ok else CheckStatus.FAIL,
-        message=f"{'OK' if is_ok else 'FAILED'} ({elapsed}s)",
-        details={"elapsed_s": elapsed, "returncode": return_code},
-        hint=None if is_ok else "Stata was found but command execution failed.",
+        name="wine",
+        status=CheckStatus.PASS,
+        message="prefix, executable, wine, and xvfb-run found",
+        details=details,
     )
 
 
@@ -697,6 +734,7 @@ def _all_checks(config: Any, dry_run: bool = False) -> list[tuple[str, Any]]:
         ("dependencies", check_dependencies),
         ("stata_cli", lambda: check_stata_cli(config)),
         ("stata_execution", None),
+        ("wine", lambda: check_wine(config)),
         ("config", lambda: check_config(config)),
         ("working_dir", lambda: check_working_dir(config)),
         ("guard", lambda: check_guard(config)),
@@ -718,6 +756,7 @@ AVAILABLE_CHECKS = [
     "dependencies",
     "stata_cli",
     "stata_execution",
+    "wine",
     "config",
     "working_dir",
     "guard",

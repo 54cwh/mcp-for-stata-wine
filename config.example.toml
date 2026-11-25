@@ -22,6 +22,9 @@ enable_windows_data_info = false
 [HELP]
 IS_CACHE = true
 IS_SAVE = true
+# Extra ado directories scanned for .sthlp files (comma-separated). Useful for
+# community packages installed outside the Stata installation / user ado tree.
+ADDITIONAL_PATHS = []
 
 [SECURITY]
 IS_GUARD = true

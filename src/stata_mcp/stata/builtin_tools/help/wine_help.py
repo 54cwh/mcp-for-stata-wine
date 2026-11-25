@@ -54,10 +54,14 @@ _TOPIC_TAGS = {"help", "helpb", "man", "sthlp", "mansection"}
 _SPACE_AFTER_TAGS = {"p2col", "synopt", "syntab", "synopthdr"}
 
 
-def ado_roots(prefix: Path | str, stata_exe: Path | str | None = None) -> list[Path]:
+def ado_roots(
+    prefix: Path | str,
+    stata_exe: Path | str | None = None,
+    extra_paths: tuple[Path, ...] = (),
+) -> list[Path]:
     """Return the ado directories that can hold help files inside a prefix."""
     prefix_path = Path(prefix).expanduser()
-    roots: list[Path] = []
+    roots: list[Path] = [Path(path).expanduser() for path in extra_paths]
 
     if stata_exe:
         roots.append(Path(stata_exe).expanduser().parent / "ado")

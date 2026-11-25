@@ -32,6 +32,7 @@ def stata_help(
             help_roots=ado_roots(
                 runtime.config.WINE_PREFIX,
                 runtime.config.WINE_STATA_EXE,
+                runtime.config.HELP_ADDITIONAL_PATHS,
             ),
             project_tmp_dir=runtime.tmp_base_path,
             cache_dir=runtime.config.HELP_CACHE_DIR,
