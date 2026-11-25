@@ -14,7 +14,7 @@ import re
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 from uuid import uuid4
 
 from ...audit import (
@@ -37,7 +37,9 @@ class StataDo:
                  monitors: Optional[List] = None,
                  audit_store: AuditStore | None = None,
                  audit_interface: str = "runtime",
-                 is_wine: bool = False):
+                 is_wine: bool = False,
+                 export_graphs: bool = False,
+                 graph_formats: tuple[str, ...] = ("png",)):
         """
         Initialize Stata executor
 
@@ -50,6 +52,8 @@ class StataDo:
             audit_store: Optional audit store. Defaults to the log artifact root.
             audit_interface: Interface label for standalone audit events.
             is_wine: Whether Stata is a Windows build driven through Wine.
+            export_graphs: Export graphs created by the run (Wine/batch only).
+            graph_formats: Image formats to export ("png", "svg").
         """
         self.stata_cli = stata_cli
         self.log_file_path = log_file_path
@@ -59,6 +63,8 @@ class StataDo:
             from ...utils import get_os
             self.is_unix = get_os() in ["Darwin", "Linux"]
         self.is_wine = bool(is_wine)
+        self.export_graphs = bool(export_graphs)
+        self.graph_formats = tuple(formats for formats in graph_formats if formats)
         self.cwd = cwd or Path.cwd()
         self.monitors = monitors or []
         self.IS_MONITOR = len(self.monitors) > 0
@@ -81,7 +87,7 @@ class StataDo:
         is_replace: bool = True,
         enable_smcl: bool = True,
         timeout: float | None = None,
-    ) -> Dict[str, Path]:
+    ) -> Dict[str, Any]:
         """
         Execute Stata do file and return log file path
 
@@ -128,7 +134,9 @@ class StataDo:
                     result = self._execute_wine(
                         execution_path,
                         log_file,
+                        log_name,
                         is_replace,
+                        enable_smcl,
                         timeout,
                     )
                 elif self.is_unix:
@@ -254,14 +262,15 @@ class StataDo:
     def _finish_audited_success(
         audit_context: AuditExecutionContext,
         owns_run: bool,
-        log_paths: Dict[str, Path],
+        log_paths: Dict[str, Any],
     ) -> None:
-        audit_context.artifacts.update(
-            {
-                f"{log_type}_log_path": log_path.as_posix()
-                for log_type, log_path in log_paths.items()
-            }
-        )
+        artifacts: Dict[str, Any] = {}
+        for log_type, value in log_paths.items():
+            if isinstance(value, Path):
+                artifacts[f"{log_type}_log_path"] = value.as_posix()
+            elif log_type == "graphs":
+                artifacts["graphs"] = [path.as_posix() for path in value]
+        audit_context.artifacts.update(artifacts)
         if owns_run:
             audit_context.store.finish_run(
                 audit_context.run,
@@ -397,10 +406,22 @@ class StataDo:
         dofile_path: Path | str,
         log_file: Path | str,
         is_replace: bool,
+        smcl_file: Path | str | None = None,
+        working_dir: Path | str | None = None,
+        graph_dir: Path | str | None = None,
+        graph_formats: tuple[str, ...] = ("png",),
     ) -> Path:
-        """Atomically create and write a random Windows wrapper do-file."""
+        """Atomically create and write a random Windows wrapper do-file.
+
+        ``smcl_file`` adds a second, named SMCL log; ``working_dir`` emits a
+        ``cd`` before the logs open. Wine needs the latter because the Windows
+        Stata binary starts on ``C:`` and resolves absolute POSIX paths written
+        inside a do-file against that drive (r(603)). ``graph_dir`` appends a
+        ``graph dir`` sweep that exports every graph in memory (batch mode has
+        no Graph window, so unnamed ``graph export`` alone fails with r(693)).
+        """
         batch_prefix = Path(cls._generate_batch_file_name()).stem
-        replace_clause = ", replace" if is_replace else ""
+        replace_option = "replace " if is_replace else ""
         batch_file: Optional[Path] = None
 
         try:
@@ -414,9 +435,30 @@ class StataDo:
             ) as file:
                 batch_file = Path(file.name)
                 file.write("capture log close\n")
-                file.write(f'log using "{log_file}"{replace_clause}\n')
+                if working_dir is not None:
+                    file.write(f'cd "{working_dir}"\n')
+                file.write(
+                    f'log using "{log_file}", {replace_option}name(text_log)\n'
+                )
+                if smcl_file is not None:
+                    file.write(
+                        f'log using "{smcl_file}", {replace_option}'
+                        "name(smcl_log) smcl\n"
+                    )
                 file.write(f'do "{dofile_path}"\n')
-                file.write("log close\n")
+                if graph_dir is not None:
+                    file.write("capture graph dir\n")
+                    file.write("if !_rc {\n")
+                    file.write("    foreach _stata_mcp_g in `r(list)' {\n")
+                    for graph_format in graph_formats:
+                        target = f"{graph_dir}/`_stata_mcp_g'.{graph_format}"
+                        file.write(
+                            f'        quietly graph export "{target}", '
+                            "name(`_stata_mcp_g') replace\n"
+                        )
+                    file.write("    }\n")
+                    file.write("}\n")
+                file.write("log close _all\n")
                 file.write("exit, STATA\n")
         except Exception:
             if batch_file is not None:
@@ -565,32 +607,75 @@ class StataDo:
 
         Wine maps the host root to ``Z:\\``; a POSIX path passed inside a Stata
         do-file would otherwise be resolved against ``C:`` and fail with r(603).
+        The result is embedded in a quoted do-file string, so characters Stata
+        would expand or that would end the string are rejected.
         """
         resolved = Path(path).resolve().as_posix()
         if not resolved.startswith("/"):
             raise ValueError(
                 f"Wine path translation requires an absolute POSIX path: {path}"
             )
+        if any(char in resolved for char in ('"', "`", "\n", "\r")):
+            raise ValueError(
+                "Wine path translation rejects quotes, backticks, and newlines: "
+                f"{path}"
+            )
         return f"Z:{resolved}"
+
+    @staticmethod
+    def _batch_auto_log(batch_file: Path) -> Path:
+        """``/e do x.do`` makes Stata write ``x.log`` next to the do-file."""
+        return batch_file.with_suffix(".log")
+
+    def _prepare_graph_dir(self, log_name: str) -> Path:
+        """Return a clean per-run directory for exported graphs."""
+        graph_dir = self.log_file_path.resolve() / "graphs" / log_name
+        graph_dir.mkdir(parents=True, exist_ok=True)
+        for stale in graph_dir.glob("*"):
+            if stale.is_file():
+                try:
+                    stale.unlink()
+                except OSError as error:
+                    logging.warning("Failed to clear stale graph %s: %s", stale, error)
+        return graph_dir
+
+    @classmethod
+    def _read_batch_failure_log(cls, batch_file: Path, limit: int = 2000) -> str:
+        try:
+            text = cls._batch_auto_log(batch_file).read_text(
+                encoding="utf-8", errors="replace"
+            ).strip()
+        except OSError:
+            return "Stata produced no log output."
+        return text[-limit:] if text else "Stata produced no log output."
 
     def _execute_wine(
         self,
         dofile_path: Path,
         log_file: Path,
+        log_name: str,
         is_replace: bool = True,
+        enable_smcl: bool = True,
         timeout: float | None = None,
-    ) -> Dict[str, Path]:
+    ) -> Dict[str, Any]:
         """Execute a Windows Stata build through Wine in batch mode.
 
         Wine-hosted Stata cannot read stdin, so this mirrors ``_execute_windows``
-        but (a) passes an argv list without a shell and (b) rewrites every path
-        in the wrapper do-file to ``Z:/...``. The returned log path stays POSIX
-        so ``read_log`` and the audit store keep working unchanged.
+        but (a) passes an argv list without a shell, (b) rewrites every path in
+        the wrapper do-file to ``Z:/...`` and cds into the project first, and
+        (c) opens an optional SMCL log alongside the text log. The returned log
+        paths stay POSIX so ``read_log`` and the audit store keep working.
         """
+        smcl_file = self.generate_log_file(log_name, "smcl") if enable_smcl else None
+        graph_dir = self._prepare_graph_dir(log_name) if self.export_graphs else None
         batch_file = self._create_windows_batch_file(
             self._to_wine_path(dofile_path),
             self._to_wine_path(log_file),
             is_replace,
+            smcl_file=self._to_wine_path(smcl_file) if smcl_file else None,
+            working_dir=self._to_wine_path(self.cwd),
+            graph_dir=self._to_wine_path(graph_dir) if graph_dir else None,
+            graph_formats=self.graph_formats,
         )
         proc: Optional[subprocess.Popen] = None
         try:
@@ -613,11 +698,27 @@ class StataDo:
             if proc.returncode != 0:
                 logging.error(f"Stata execution failed under Wine: {stderr}")
                 raise RuntimeError(f"Wine Stata execution failed: {stderr}")
+            if not log_file.exists() and self._batch_auto_log(batch_file).exists():
+                # ``/e`` exits 0 even when the wrapper do-file fails before
+                # ``log using`` (e.g. a syntax error); the auto log beside the
+                # batch file is the only evidence that Stata actually ran.
+                detail = self._read_batch_failure_log(batch_file)
+                raise RuntimeError(
+                    "Wine Stata finished without writing the log file "
+                    f"{log_file}. {detail}"
+                )
             logging.info(
                 "Stata execution completed successfully under Wine. Log file: %s",
                 log_file,
             )
-            return {"text": log_file}
+            result: Dict[str, Any] = {"text": log_file}
+            if smcl_file is not None:
+                result["smcl"] = smcl_file
+            if graph_dir is not None:
+                result["graphs"] = sorted(
+                    path for path in graph_dir.glob("*") if path.is_file()
+                )
+            return result
         except subprocess.TimeoutExpired as error:
             logging.warning(f"Stata execution timed out after {timeout:g} seconds")
             raise self._timeout_error(timeout) from error
@@ -628,6 +729,12 @@ class StataDo:
                 except Exception as e:
                     logging.warning(f"Monitor stop failed: {e}")
             self._cleanup_process(proc)
+            auto_log = self._batch_auto_log(batch_file)
+            if auto_log.exists():
+                try:
+                    auto_log.unlink()
+                except Exception as e:
+                    logging.warning("Failed to remove batch log %s: %s", auto_log, e)
             if batch_file.exists():
                 try:
                     batch_file.unlink()

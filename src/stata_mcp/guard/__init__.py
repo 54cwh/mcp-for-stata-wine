@@ -35,6 +35,7 @@ from .validator import (
     PackageManagementGuardValidator,
     RiskItem,
     SecurityReport,
+    format_rejection_warning,
 )
 
 __all__ = [
@@ -43,6 +44,7 @@ __all__ = [
     "PackageManagementGuardValidator",
     "RiskItem",
     "SecurityReport",
+    "format_rejection_warning",
     "require_ado_install_confirmation",
     "validate_ado_package_name",
     "validate_ado_install_request",

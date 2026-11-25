@@ -104,10 +104,49 @@ DANGEROUS_PATTERNS: List[str] = [
 
 
 # ============================================================================
+# Batch-Mode No-Ops
+# ============================================================================
+
+#: GUI-only commands that Stata silently ignores in batch mode ("request
+#: ignored because of batch mode"). Running them wastes a run and leaves the
+#: agent believing it inspected the data, so batch profiles reject them with a
+#: pointer to the MCP tool that covers the same need.
+_BATCH_IGNORED_ALIASES: dict[str, tuple[str, ...]] = {
+    "browse": ("br", "bro", "brow", "brows", "browse"),
+    "edit": ("ed", "edi", "edit"),
+    "view": ("vi", "vie", "view"),
+    "doedit": ("doe", "doed", "doedi", "doedit"),
+    "help": ("help",),
+    "search": ("sear", "searc", "search"),
+    "db": ("db",),
+    "window": ("window", "win"),
+}
+
+BATCH_IGNORED_COMMANDS: dict[str, str] = {
+    alias: command
+    for command, aliases in _BATCH_IGNORED_ALIASES.items()
+    for alias in aliases
+}
+
+BATCH_IGNORED_HINTS: dict[str, str] = {
+    "browse": "use the get_data_info tool to inspect the dataset",
+    "edit": "batch mode cannot edit data; make the change in the do-file",
+    "view": "batch mode has no viewer; open the file in your editor",
+    "doedit": "batch mode has no do-file editor; edit the file directly",
+    "help": "use the help tool to read documentation",
+    "search": "use the help tool or the documentation instead",
+    "db": "dialog boxes are unavailable in batch mode",
+    "window": "window management is unavailable in batch mode",
+}
+
+
+# ============================================================================
 # Metadata
 # ============================================================================
 
 __all__ = [
+    "BATCH_IGNORED_COMMANDS",
+    "BATCH_IGNORED_HINTS",
     "DANGEROUS_COMMANDS",
     "DANGEROUS_PATTERNS",
     "PACKAGE_MANAGEMENT_COMMANDS",

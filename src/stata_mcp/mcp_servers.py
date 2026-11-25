@@ -38,6 +38,7 @@ from ._diagnostic_logging import (
 )
 from .audit import AuditMiddleware, AuditStore, record_security_event
 from .config import Config
+from .guard import format_rejection_warning
 from .observability import debug_step
 from .utils.update import get_current_version, get_latest_version
 
@@ -166,23 +167,31 @@ def _load_help_cls():
     """Lazy-load and cache the Stata help provider."""
     global _help_cls
 
-    if not config.IS_UNIX or getattr(config, "IS_WINE", False):
+    if not config.IS_UNIX:
         raise RuntimeError(
-            "The help tool is only available on Unix-like platforms "
-            "with a native Stata."
+            "The help tool is only available on Unix-like platforms."
         )
 
     if _help_cls is None:
         from .stata import StataHelp
 
         help_config = config.get_help_config("mcp")
+        if getattr(config, "IS_WINE", False):
+            from .stata.builtin_tools.help.wine_help import ado_roots
+
+            help_kwargs = {
+                "stata_cli": None,
+                "help_roots": ado_roots(config.WINE_PREFIX, config.WINE_STATA_EXE),
+            }
+        else:
+            help_kwargs = {"stata_cli": config.STATA_CLI}
         _help_cls = StataHelp(
-            stata_cli=config.STATA_CLI,
             project_tmp_dir=config.STATA_MCP_FOLDER.TMP,
             cache_dir=config.HELP_CACHE_DIR,
             config=config,
             is_cache=help_config.is_cache,
             is_save=help_config.is_save,
+            **help_kwargs,
         )
 
     return _help_cls
@@ -318,15 +327,14 @@ def _prepare_stata_do_request(dofile_path: str) -> Dict[str, Any] | _StataDoRequ
                 "[SECURITY VIOLATION] Security rejection for dofile: %s",
                 dangerous_summary,
             )
-            warning_msg = "⚠️  Security warning: Dangerous commands detected:\n"
-            for item in report.dangerous_items:
-                warning_msg += f"  - Line {item.line}: {item.type} '{item.content}'\n"
+            warning_msg = format_rejection_warning(report)
             return {
                 "action": "Security check, dofile not executed",
                 "warning": warning_msg,
                 "suggesting": (
-                    "Modify the dofile to ensure safety\n"
-                    "or set environment variable `STATA_MCP__IS_GUARD` to `false` (not recommended)"
+                    "Remove the flagged commands, or use the MCP tool named in the "
+                    "warning. To disable the guard (not recommended), set "
+                    "`STATA_MCP__IS_GUARD` to `false`."
                 ),
             }
         else:
@@ -375,12 +383,22 @@ def _format_stata_do_result(
     stata_executor: Any,
     text_log: str,
 ) -> Dict[str, Any]:
+    graph_paths = log_file_path_mapping.pop("graphs", [])
     result: Dict[str, Any] = {
         "log_file_path": {
             k: v.as_posix()  # avoiding issues with some AI clients that may not recognize Path objects
             for k, v in log_file_path_mapping.items()
         },
     }
+    if graph_paths:
+        result["graphs"] = [
+            {
+                "name": path.stem,
+                "path": path.as_posix(),
+                "format": path.suffix.lstrip("."),
+            }
+            for path in graph_paths
+        ]
 
     # Return log content based on user preference
     if read_log_when_error:
@@ -433,7 +451,7 @@ def _sync_stata_do(
         read_log_when_error (bool): If True, include log text only when a Stata return-code error
             (e.g. r(198)) is present. If no error is found, returns a short confirmation instead.
         is_replace_log (bool): Overwrite existing log files. Defaults to True.
-        enable_smcl (bool): Also generate .smcl log (Unix only). Defaults to True.
+        enable_smcl (bool): Also generate .smcl log, except on native Windows. Defaults to True.
         timeout (float, optional): Maximum execution time in seconds. Defaults to no timeout.
 
     Returns:
@@ -451,7 +469,7 @@ def _sync_stata_do(
     Notes:
         - Log files are automatically created in the configured log directory.
         - Supports multiple operating systems through the StataDo executor.
-        - SMCL format preserves hyperlinks from findsj, getiref commands (Unix only).
+        - SMCL format preserves hyperlinks from findsj, getiref commands (Unix and Wine).
         - Security guard blocks execution when dangerous commands are detected.
         - To disable security guard, set STATA_MCP__IS_GUARD=false (not recommended).
     """
@@ -474,6 +492,8 @@ def _sync_stata_do(
         cwd=config.WORKING_DIR,
         monitors=request.monitors,
         is_wine=getattr(config, "IS_WINE", False),
+        export_graphs=getattr(config, "GRAPH_EXPORT", False),
+        graph_formats=getattr(config, "GRAPH_FORMATS", ("png",)),
     )
 
     # Execute the do-file and get log file path
@@ -537,6 +557,8 @@ async def _async_stata_do(
         cwd=config.WORKING_DIR,
         monitors=request.monitors,
         is_wine=getattr(config, "IS_WINE", False),
+        export_graphs=getattr(config, "GRAPH_EXPORT", False),
+        graph_formats=getattr(config, "GRAPH_FORMATS", ("png",)),
     )
 
     logging.info("Try to running dofile.")
@@ -885,6 +907,23 @@ def read_log(
         raise IOError(f"An error occurred while reading the file: {e}")
 
 
+def stata_info(ctx: Context | None = None) -> Dict[str, Any]:
+    """
+    Report the Stata runtime environment.
+
+    Returns the Stata version, edition, flavor, working directory, adopath,
+    memory limit, and whether the run happens in batch mode. Use it before
+    generating version-specific code: frames and `python` need Stata 16+, and
+    GUI-only commands are ignored in batch mode.
+
+    Returns:
+        Dict[str, Any]: Stata environment details, plus a `supports` map.
+    """
+    from .api.stata_info import stata_info as api_stata_info
+
+    return api_stata_info()
+
+
 def _trim_lines(content: str, lines: int) -> str:
     """Trim content to requested line range."""
     if lines == 0:
@@ -956,6 +995,16 @@ _TOOL_REGISTRY: Dict[str, Dict[str, Any]] = {
         "profiles": {"core", "all"},
         "unix_only": True,
     },
+    "stata_info": {
+        "description": (
+            "Report the Stata runtime environment: version, edition, flavor, "
+            "working directory, adopath, memory, and whether runs execute in "
+            "batch mode. Use it before writing version-specific code."
+        ),
+        "func": stata_info,
+        "config_name": "STATA_INFO",
+        "profiles": {"core", "all"},
+    },
     "read_log": {
         "description": (
             "Read a Stata log file (.log or .smcl) and return its content. "
@@ -997,9 +1046,7 @@ def register_tools(server: MCPServer, profile: str = "all") -> None:
         )
 
     for name, meta in _TOOL_REGISTRY.items():
-        if meta.get("unix_only") and (
-            not config.IS_UNIX or getattr(config, "IS_WINE", False)
-        ):
+        if meta.get("unix_only") and not config.IS_UNIX:
             continue
         # BETA gate: hide Windows-only-buggy tools unless the beta flag is on.
         # get_data_info's MCP wrapper is broken on Windows (see registry note),
@@ -1050,6 +1097,7 @@ __all__ = [
     # Functions (Core)
     "get_data_info",
     "stata_do",
+    "stata_info",
     "register_tools",
     # Utilities
     "read_log",

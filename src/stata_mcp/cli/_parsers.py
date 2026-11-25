@@ -238,6 +238,12 @@ def add_tool_parser(subparsers: argparse._SubParsersAction) -> argparse.Argument
         help_text="Skip caches and refresh help from Stata",
     )
 
+    tool_info_parser = tool_subparsers.add_parser(
+        "info",
+        help="Report the Stata runtime environment through the API module",
+    )
+    add_config_argument(tool_info_parser, default=argparse.SUPPRESS)
+
     tool_data_info_parser = tool_subparsers.add_parser(
         "data-info",
         help="Read dataset metadata through the API module",

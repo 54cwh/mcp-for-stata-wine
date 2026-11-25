@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Coroutine, Dict
 
 from ..core.types import RAMLimitExceededError
-from ..guard import GuardValidator, PackageManagementGuardValidator
+from ..guard import GuardValidator, PackageManagementGuardValidator, format_rejection_warning
 from ..monitor import RAMMonitor
 from ..stata import StataDo, StataLog
 from ..stata.stata_do.async_do import AsyncStataDo
@@ -137,6 +137,8 @@ def _stata_do(
         cwd=runtime.cwd,
         monitors=monitors,
         is_wine=getattr(runtime, "is_wine", False),
+        export_graphs=getattr(runtime.config, "GRAPH_EXPORT", False),
+        graph_formats=getattr(runtime.config, "GRAPH_FORMATS", ("png",)),
     )
 
     try:
@@ -166,11 +168,21 @@ def _stata_do(
         logging.debug("Execution exception details: %s", error)
         return {"error": str(error)}
 
+    graph_paths = log_file_path_mapping.pop("graphs", [])
     result: Dict[str, Any] = {
         "log_file_path": {
             key: value.as_posix() for key, value in log_file_path_mapping.items()
         }
     }
+    if graph_paths:
+        result["graphs"] = [
+            {
+                "name": path.stem,
+                "path": path.as_posix(),
+                "format": path.suffix.lstrip("."),
+            }
+            for path in graph_paths
+        ]
 
     if read_log_when_error:
         text_log_reader = StataLog.from_path(text_log_path)
@@ -210,15 +222,14 @@ def _security_rejection(report, resolved_dofile_path: Path) -> Dict[str, Any]:
         "[SECURITY VIOLATION] Security rejection for dofile: %s",
         dangerous_summary,
     )
-    warning_message = "⚠️  Security warning: Dangerous commands detected:\n"
-    for item in report.dangerous_items:
-        warning_message += f"  - Line {item.line}: {item.type} '{item.content}'\n"
+    warning_message = format_rejection_warning(report)
     return {
         "action": "Security check, dofile not executed",
         "warning": warning_message,
         "suggesting": (
-            "Modify the dofile to ensure safety. Third-party package management "
-            "must use the controlled ado_package_install interface."
+            "Remove the flagged commands, or use the MCP tool named in the "
+            "warning. Third-party package management must use the controlled "
+            "ado_package_install interface."
         ),
     }
 

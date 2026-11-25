@@ -1176,6 +1176,61 @@ class Config:
         return cli
 
     @property
+    def WINE_PREFIX(self) -> Path:
+        """Wine prefix that holds the Windows Stata install.
+
+        Used by the local help backend to find ``.sthlp`` files. Mirrors the
+        default of ``scripts/stata-wine``: ``$WINEPREFIX`` or ``~/.wine``.
+        """
+        default_prefix = os.getenv("WINEPREFIX") or str(Path.home() / ".wine")
+        return self._get_config_value(
+            config_keys=["STATA", "WINE_PREFIX"],
+            env_var="STATA_MCP__WINE_PREFIX",
+            default=Path(default_prefix).expanduser(),
+            converter=self._to_path,
+            validator=lambda x: isinstance(x, Path),
+        )
+
+    @property
+    def WINE_STATA_EXE(self) -> Path | None:
+        """Windows Stata executable inside the prefix, when explicitly set."""
+        return self._get_config_value(
+            config_keys=["STATA", "WINE_STATA_EXE"],
+            env_var="STATA_MCP__WINE_STATA_EXE",
+            default=None,
+            converter=self._to_path,
+            validator=lambda x: x is None or isinstance(x, Path),
+        )
+
+    @property
+    def GRAPH_EXPORT(self) -> bool:
+        """Export graphs produced by a Wine/batch run into the log folder."""
+        return self._get_config_value(
+            config_keys=["GRAPH", "EXPORT"],
+            env_var="STATA_MCP__GRAPH_EXPORT",
+            default=True,
+            converter=self._to_bool,
+            validator=lambda x: isinstance(x, bool),
+        )
+
+    @property
+    def GRAPH_FORMATS(self) -> tuple[str, ...]:
+        """Image formats for captured graphs: ``png``, ``svg``, or ``both``."""
+        value = self._get_config_value(
+            config_keys=["GRAPH", "FORMAT"],
+            env_var="STATA_MCP__GRAPH_FORMAT",
+            default="png",
+            converter=self._to_str,
+            validator=lambda x: isinstance(x, str),
+        )
+        normalized = str(value).strip().lower()
+        if normalized == "both":
+            return ("png", "svg")
+        if normalized in {"png", "svg"}:
+            return (normalized,)
+        return ("png",)
+
+    @property
     def IS_GUARD(self) -> bool:
         return self._get_config_value(
             config_keys=["SECURITY", "IS_GUARD"],

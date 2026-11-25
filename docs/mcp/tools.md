@@ -1,6 +1,6 @@
 # MCP.Tools
 
-Tools are partitioned into three profiles inside `_TOOL_REGISTRY`. `stata-mcp server --core` registers only `stata_do`, `get_data_info`, and `help`. `stata-mcp server --all` (the default) registers standard tools but excludes high-risk third-party installation. `stata-mcp server --unsafe` adds `ado_package_install`. The `help` tool is filtered out on Windows. `get_data_info` is also hidden on Windows by default because its MCP wrapper has a known Windows-only bug; re-enable it there with `[BETA] enable_windows_data_info=true`. `write_dofile` is no longer registered as an MCP tool.
+Tools are partitioned into three profiles inside `_TOOL_REGISTRY`. `stata-mcp server --core` registers only `stata_do`, `stata_info`, `get_data_info`, and `help`. `stata-mcp server --all` (the default) registers standard tools but excludes high-risk third-party installation. `stata-mcp server --unsafe` adds `ado_package_install`. The `help` tool is filtered out on Windows. `get_data_info` is also hidden on Windows by default because its MCP wrapper has a known Windows-only bug; re-enable it there with `[BETA] enable_windows_data_info=true`. `write_dofile` is no longer registered as an MCP tool.
 
 ---
 ## get_data_info
@@ -329,6 +329,62 @@ The tool implements Stata command documentation retrieval through CLI invocation
 
 Caching architecture maintains help text cache at `~/.statamcp/help/` directory with file-based storage keyed by command name. Cache behavior controllable via environment variables: `STATA_MCP__CACHE_HELP` (default: true) enables/disables caching; `STATA_MCP__SAVE_HELP` controls cache persistence. Cached results include prefix message indicating cache status: "Cached result for {cmd}: ..." versus live help text.
 
-Currently registered only as an MCP tool. Resource registration (URI pattern `help://stata/{cmd}`) was disabled in v1.16.1 due to a URI template parameter mismatch with FastMCP; tool form remains fully functional. The tool is gated by the `unix_only` flag in `_TOOL_REGISTRY` and is only available on macOS and Linux.
+Currently registered only as an MCP tool. Resource registration (URI pattern `help://stata/{cmd}`) was disabled in v1.16.1 due to a URI template parameter mismatch with FastMCP; tool form remains fully functional. The tool is gated by the `unix_only` flag in `_TOOL_REGISTRY` and is available on macOS, Linux, and Wine profiles. Under Wine, batch-mode Stata ignores `help`, so the tool renders the installation's `.sthlp` files instead.
 
 Cache invalidation requires manual deletion of cache files or environment variable configuration; no TTL-based expiration exists. Help text language depends on Stata installation locale; multilingual support requires separate Stata installations or locale reconfiguration.
+
+## stata_info
+
+```python
+def stata_info() -> dict
+```
+
+Reports the Stata runtime environment so generated code can match the installed version:
+
+```json
+{
+  "stata": {
+    "stata_version": "18",
+    "edition": "BE",
+    "flavor": "IC",
+    "os": "Windows",
+    "maxvar": "5000",
+    "memory": "33554432",
+    "pwd": "Z:\\project",
+    "adopath": "BASE;SITE;.;PERSONAL;PLUS;OLDPLACE"
+  },
+  "stata_mcp_version": "1.25.0",
+  "batch_mode": true,
+  "wine": true,
+  "wine_prefix": "/home/user/wineprefixes/stata",
+  "supports": {"frames": true, "python": true, "graph_capture": true}
+}
+```
+
+The tool runs a short probe do-file through the same executor as `stata_do`, so it reports the same environment a real run will see. `batch_mode` is true for Wine and native Windows runs, where GUI-only commands such as `browse`, `edit`, `view`, `doedit`, `help`, `search`, `db`, and `window` are silently ignored; the security guard rejects those commands in batch profiles with a pointer to the MCP tool that covers the need.
+
+## Graph capture under Wine
+
+Batch-mode Stata has no Graph window, so an unnamed `graph export` fails with r(693). The Wine executor therefore lists the graphs in memory with `graph dir`, reads the names from `r(list)`, and exports each one by name after the do-file finishes:
+
+```stata
+capture graph dir
+if !_rc {
+    foreach _stata_mcp_g in `r(list)' {
+        quietly graph export "<log folder>/graphs/<log name>/`_stata_mcp_g'.png", name(`_stata_mcp_g') replace
+    }
+}
+```
+
+Captured files are reported in the `stata_do` result:
+
+```json
+{
+  "log_file_path": {"text": "...", "smcl": "..."},
+  "graphs": [
+    {"name": "h1", "path": ".../graphs/run/h1.png", "format": "png"}
+  ]
+}
+```
+
+Control it with `[GRAPH] EXPORT` (default `true`) and `[GRAPH] FORMAT` (`png`, `svg`, or `both`).

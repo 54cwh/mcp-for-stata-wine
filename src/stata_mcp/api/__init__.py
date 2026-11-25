@@ -13,6 +13,7 @@ from .get_data_info import get_data_info
 from .read_log import read_log
 from .stata_do import stata_do
 from .stata_help import stata_help
+from .stata_info import stata_info
 from .write_dofile import write_dofile
 
 __all__ = [
@@ -23,5 +24,6 @@ __all__ = [
     "read_log",
     "stata_do",
     "stata_help",
+    "stata_info",
     "write_dofile",
 ]

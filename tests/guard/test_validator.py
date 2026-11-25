@@ -272,3 +272,52 @@ def test_frame_prefix_is_stripped_before_command_check() -> None:
         item.type == "command" and item.content == "shell"
         for item in report.dangerous_items
     )
+
+
+def _batch_config(**overrides):
+    from types import SimpleNamespace
+
+    values = {
+        "IS_WINE": True,
+        "IS_UNIX": True,
+        "ENABLE_DATA_COMMAND_PATH_GUARD": False,
+    }
+    values.update(overrides)
+    return SimpleNamespace(**values)
+
+
+def test_batch_mode_blocks_browse_and_abbreviations() -> None:
+    report = GuardValidator().validate(
+        "browse\nbr price\nquietly edit\nview\n",
+        config=_batch_config(),
+    )
+
+    assert report.is_safe is False
+    batch_items = [item for item in report.dangerous_items if item.type == "batch_mode"]
+    assert len(batch_items) == 4
+    assert "get_data_info" in batch_items[0].content
+
+
+def test_batch_mode_blocks_help_and_search_with_a_tool_hint() -> None:
+    report = GuardValidator().validate("help regress\nsearch regression\n", config=_batch_config())
+
+    contents = [item.content for item in report.dangerous_items if item.type == "batch_mode"]
+    assert any("use the help tool" in content for content in contents)
+
+
+def test_batch_mode_allows_normal_commands() -> None:
+    report = GuardValidator().validate(
+        "sysuse auto, clear\nregress price mpg\n",
+        config=_batch_config(),
+    )
+
+    assert report.is_safe is True
+
+
+def test_non_batch_profiles_allow_browse() -> None:
+    report = GuardValidator().validate(
+        "browse",
+        config=_batch_config(IS_WINE=False, IS_UNIX=True),
+    )
+
+    assert report.is_safe is True

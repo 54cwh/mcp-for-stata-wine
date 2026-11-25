@@ -24,12 +24,28 @@ def stata_help(
     """Return help content for a Stata command through a one-shot helper."""
     runtime = create_runtime_context(config_file=config_file, require_stata=True)
     help_config = runtime.config.get_help_config(tool_context)
-    help_reader = StataHelp(
-        stata_cli=runtime.stata_cli,
-        project_tmp_dir=runtime.tmp_base_path,
-        cache_dir=runtime.config.HELP_CACHE_DIR,
-        config=runtime.config,
-        is_cache=help_config.is_cache,
-        is_save=help_config.is_save,
-    )
+    if getattr(runtime.config, "IS_WINE", False):
+        from ..stata.builtin_tools.help.wine_help import ado_roots
+
+        help_reader = StataHelp(
+            stata_cli=None,
+            help_roots=ado_roots(
+                runtime.config.WINE_PREFIX,
+                runtime.config.WINE_STATA_EXE,
+            ),
+            project_tmp_dir=runtime.tmp_base_path,
+            cache_dir=runtime.config.HELP_CACHE_DIR,
+            config=runtime.config,
+            is_cache=help_config.is_cache,
+            is_save=help_config.is_save,
+        )
+    else:
+        help_reader = StataHelp(
+            stata_cli=runtime.stata_cli,
+            project_tmp_dir=runtime.tmp_base_path,
+            cache_dir=runtime.config.HELP_CACHE_DIR,
+            config=runtime.config,
+            is_cache=help_config.is_cache,
+            is_save=help_config.is_save,
+        )
     return help_reader.help(cmd, replace=replace)

@@ -197,6 +197,9 @@ stata-mcp tool do /path/to/analysis.do --timeout 300
 # Read Stata help through the one-shot API helper
 stata-mcp tool help regress
 
+# Report the Stata version, edition, and batch-mode capabilities
+stata-mcp tool info
+
 # Inspect a supported dataset
 stata-mcp tool data-info /path/to/data.dta
 
@@ -208,6 +211,7 @@ Tool subcommands:
 - `stata-mcp tool ado-install <package_name> [-y|--yes] [--source ssc|net|github]`
 - `stata-mcp tool do <dofile_path> [--log-file-name <name>] [--is-read-log true|false] [--is-replace-log true|false] [--enable-smcl true|false] [--timeout <seconds>]`
 - `stata-mcp tool help <command> [--replace true|false]`
+- `stata-mcp tool info`
 - `stata-mcp tool data-info <data_path> [--vars-list var1 var2 ...]`
 - `stata-mcp tool read-log <log_path> [--output-format full|core|dict]`
 

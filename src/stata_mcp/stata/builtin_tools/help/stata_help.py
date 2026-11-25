@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from ....guard import validate_stata_identifier
 from ...stata_controller import StataController
+from .wine_help import WineStataHelp
 
 if TYPE_CHECKING:
     from ...config import Config
@@ -23,12 +24,13 @@ logger = logging.getLogger(__name__)
 class StataHelp:
     def __init__(
         self,
-        stata_cli: str,
+        stata_cli: str | None = None,
         project_tmp_dir: Path | None = None,
         cache_dir: Path | None = None,
         config: "Config | None" = None,
         is_cache: bool | None = None,
         is_save: bool | None = None,
+        help_roots: list[Path] | None = None,
     ):
         self._config = config
         self._is_cache = is_cache
@@ -40,7 +42,12 @@ class StataHelp:
         self.project_tmp_dir = project_tmp_dir
         if self.project_tmp_dir is not None:
             self.project_tmp_dir.mkdir(parents=True, exist_ok=True)
-        self.controller = StataController(stata_cli)
+        # A Wine-hosted Stata ignores ``help`` in batch mode, so it reads the
+        # installation's .sthlp files instead of driving a controller.
+        self._wine_help = WineStataHelp(list(help_roots)) if help_roots else None
+        self.controller = (
+            StataController(stata_cli) if stata_cli and self._wine_help is None else None
+        )
 
     @property
     def IS_SAVE(self) -> bool:
@@ -167,11 +174,21 @@ class StataHelp:
 
     def load_from_stata(self, cmd: str):
         cmd = self._validate_command_name(cmd)
+        if getattr(self, "_wine_help", None) is not None:
+            help_result = self._wine_help.load(cmd)
+            if help_result:
+                return help_result
+            raise Exception(
+                "No help found for the command in Stata ado locally: " + cmd
+            )
+
         std_error_msg = (
             f"help {cmd}\r\n"
             f"help for {cmd} not found\r\n"
             f"try help contents or search {cmd}"
         )
+        if getattr(self, "controller", None) is None:
+            raise RuntimeError("No Stata help backend is configured.")
         help_result = self.controller.run(f"help {cmd}")
 
         if help_result != std_error_msg:
@@ -183,12 +200,16 @@ class StataHelp:
 
     def check_command_exist_with_help(self, cmd: str) -> bool:
         cmd = self._validate_command_name(cmd)
+        if getattr(self, "_wine_help", None) is not None:
+            return self._wine_help.exists(cmd)
 
         std_error_msg = (
             f"help {cmd}\r\n"
             f"help for {cmd} not found\r\n"
             f"try help contents or search {cmd}"
         )
+        if getattr(self, "controller", None) is None:
+            return False
         help_result = self.controller.run(f"help {cmd}")
         if help_result != std_error_msg:
             return True

@@ -202,3 +202,166 @@ class TestExecuteWineFailures:
 
         assert not captured["batch"].exists()
         process.terminate.assert_called_once_with()
+
+
+class TestWineBatchEnvironment:
+    def test_wrapper_cds_into_project_before_opening_logs(
+        self, monkeypatch, executor, dofile, tmp_path
+    ):
+        captured = {}
+
+        def fake_popen(cmd, **kwargs):
+            captured["wrapper"] = _batch_path(cmd).read_text(encoding="utf-8")
+            return _FakePopen()
+
+        monkeypatch.setattr(
+            "stata_mcp.stata.stata_do.do.subprocess.Popen", fake_popen
+        )
+
+        executor.execute_dofile(dofile, log_file_name="wine_cd")
+
+        wrapper = captured["wrapper"]
+        assert f'cd "Z:{tmp_path.resolve()}"' in wrapper
+        assert wrapper.index('cd "Z:') < wrapper.index('log using')
+
+    def test_wrapper_opens_named_text_and_smcl_logs(
+        self, monkeypatch, executor, dofile
+    ):
+        captured = {}
+
+        def fake_popen(cmd, **kwargs):
+            captured["wrapper"] = _batch_path(cmd).read_text(encoding="utf-8")
+            return _FakePopen()
+
+        monkeypatch.setattr(
+            "stata_mcp.stata.stata_do.do.subprocess.Popen", fake_popen
+        )
+
+        result = executor.execute_dofile(
+            dofile, log_file_name="wine_smcl", enable_smcl=True
+        )
+
+        wrapper = captured["wrapper"]
+        assert "name(text_log)" in wrapper
+        assert "name(smcl_log) smcl" in wrapper
+        assert 'log using "Z:/' in wrapper
+        assert result["smcl"] == executor.log_file_path / "wine_smcl.smcl"
+
+    def test_smcl_disabled_returns_only_text_log(self, monkeypatch, executor, dofile):
+        captured = {}
+
+        def fake_popen(cmd, **kwargs):
+            captured["wrapper"] = _batch_path(cmd).read_text(encoding="utf-8")
+            return _FakePopen()
+
+        monkeypatch.setattr(
+            "stata_mcp.stata.stata_do.do.subprocess.Popen", fake_popen
+        )
+
+        result = executor.execute_dofile(
+            dofile, log_file_name="wine_no_smcl", enable_smcl=False
+        )
+
+        assert "name(smcl_log)" not in captured["wrapper"]
+        assert set(result) == {"text"}
+
+    def test_to_wine_path_rejects_string_breaking_characters(self):
+        with pytest.raises(ValueError, match="rejects quotes"):
+            StataDo._to_wine_path('/tmp/a"b.do')
+
+    def test_missing_log_with_batch_auto_log_raises(
+        self, monkeypatch, executor, dofile
+    ):
+        captured = {}
+
+        def fake_popen(cmd, **kwargs):
+            batch = _batch_path(cmd)
+            captured["batch"] = batch
+            batch.with_suffix(".log").write_text(
+                ". log using ...\ninvalid syntax\nr(198);", encoding="utf-8"
+            )
+            return _FakePopen()
+
+        monkeypatch.setattr(
+            "stata_mcp.stata.stata_do.do.subprocess.Popen", fake_popen
+        )
+
+        with pytest.raises(RuntimeError, match=r"r\(198\)"):
+            executor.execute_dofile(dofile, log_file_name="wine_no_log")
+
+        assert not captured["batch"].with_suffix(".log").exists()
+
+
+class TestWineGraphCapture:
+    def _graph_executor(self, tmp_path: Path, **kwargs) -> StataDo:
+        log_dir = tmp_path / "logs"
+        log_dir.mkdir(exist_ok=True)
+        return StataDo(
+            stata_cli="/usr/local/bin/stata-wine",
+            log_file_path=log_dir,
+            is_unix=True,
+            cwd=tmp_path,
+            is_wine=True,
+            **kwargs,
+        )
+
+    def test_wrapper_lists_and_exports_graphs(
+        self, monkeypatch, tmp_path, dofile
+    ):
+        executor = self._graph_executor(
+            tmp_path, export_graphs=True, graph_formats=("png", "svg")
+        )
+        captured = {}
+
+        def fake_popen(cmd, **kwargs):
+            captured["wrapper"] = _batch_path(cmd).read_text(encoding="utf-8")
+            graph_dir = executor.log_file_path / "graphs" / "wine_graphs"
+            graph_dir.mkdir(parents=True, exist_ok=True)
+            (graph_dir / "hist1.png").write_bytes(b"png")
+            (graph_dir / "hist1.svg").write_text("<svg/>", encoding="utf-8")
+            return _FakePopen()
+
+        monkeypatch.setattr(
+            "stata_mcp.stata.stata_do.do.subprocess.Popen", fake_popen
+        )
+
+        result = executor.execute_dofile(dofile, log_file_name="wine_graphs")
+
+        wrapper = captured["wrapper"]
+        assert "capture graph dir" in wrapper
+        assert "graph export \"Z:/" in wrapper
+        assert ".png\"" in wrapper and ".svg\"" in wrapper
+        assert {path.name for path in result["graphs"]} == {"hist1.png", "hist1.svg"}
+
+    def test_graphs_disabled_by_default(self, monkeypatch, executor, dofile):
+        captured = {}
+
+        def fake_popen(cmd, **kwargs):
+            captured["wrapper"] = _batch_path(cmd).read_text(encoding="utf-8")
+            return _FakePopen()
+
+        monkeypatch.setattr(
+            "stata_mcp.stata.stata_do.do.subprocess.Popen", fake_popen
+        )
+
+        result = executor.execute_dofile(dofile, log_file_name="wine_no_graphs")
+
+        assert "graph dir" not in captured["wrapper"]
+        assert "graphs" not in result
+
+    def test_stale_graphs_are_cleared_before_run(
+        self, monkeypatch, tmp_path, dofile
+    ):
+        executor = self._graph_executor(tmp_path, export_graphs=True)
+        graph_dir = executor.log_file_path / "graphs" / "wine_clean"
+        graph_dir.mkdir(parents=True)
+        (graph_dir / "old.png").write_bytes(b"old")
+
+        monkeypatch.setattr(
+            "stata_mcp.stata.stata_do.do.subprocess.Popen",
+            lambda cmd, **kwargs: _FakePopen(),
+        )
+
+        executor.execute_dofile(dofile, log_file_name="wine_clean")
+
+        assert not (graph_dir / "old.png").exists()

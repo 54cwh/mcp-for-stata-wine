@@ -24,6 +24,8 @@ from ..utils.parse_dofile import (
     expand_code_for_security,
 )
 from .blacklist import (
+    BATCH_IGNORED_COMMANDS,
+    BATCH_IGNORED_HINTS,
     DANGEROUS_COMMANDS,
     DANGEROUS_PATTERNS,
     PACKAGE_MANAGEMENT_COMMANDS,
@@ -127,6 +129,27 @@ class SecurityReport:
         for item in self.dangerous_items:
             lines.append(f"  - {item}")
         return "\n".join(lines)
+
+
+def format_rejection_warning(report: SecurityReport) -> str:
+    """Render a rejection message that separates security from batch-mode items."""
+    batch_items = [item for item in report.dangerous_items if item.type == "batch_mode"]
+    other_items = [item for item in report.dangerous_items if item.type != "batch_mode"]
+
+    lines: List[str] = []
+    if other_items:
+        lines.append("⚠️  Security warning: Dangerous commands detected:")
+        lines.extend(
+            f"  - Line {item.line}: {item.type} '{item.content}'"
+            for item in other_items
+        )
+    if batch_items:
+        lines.append(
+            "⚠️  Batch-mode compatibility: these commands are silently ignored "
+            "by Stata in batch mode:"
+        )
+        lines.extend(f"  - Line {item.line}: {item.content}" for item in batch_items)
+    return "\n".join(lines) + "\n"
 
 
 # ============================================================================
@@ -233,6 +256,11 @@ class GuardValidator:
         """
         dangerous_items: List[RiskItem] = []
 
+        batch_mode = config is not None and (
+            getattr(config, "IS_WINE", False)
+            or not getattr(config, "IS_UNIX", True)
+        )
+
         original_executable_lines = self._iter_executable_lines(code.split("\n"))
         dangerous_local_names = self._collect_dangerous_local_names(
             original_executable_lines
@@ -311,6 +339,13 @@ class GuardValidator:
                 cleaned_line, origin_line_num
             )
             dangerous_items.extend(command_items)
+
+            if batch_mode:
+                dangerous_items.extend(
+                    self._check_batch_ignored_commands(
+                        cleaned_line, origin_line_num
+                    )
+                )
 
             # Check for dangerous patterns
             pattern_items = self._check_dangerous_patterns(
@@ -524,6 +559,26 @@ class GuardValidator:
     def _normalize_command_token(token: str) -> str:
         """Normalize command-position punctuation before blacklist matching."""
         return token.lower().rstrip(",:")
+
+    def _check_batch_ignored_commands(
+        self, line: str, line_num: int
+    ) -> List[RiskItem]:
+        """Reject GUI-only commands that Stata silently ignores in batch mode."""
+        words = line.split()
+        if not words:
+            return []
+        token = self._normalize_command_token(words[0])
+        canonical = BATCH_IGNORED_COMMANDS.get(token)
+        if canonical is None:
+            return []
+        hint = BATCH_IGNORED_HINTS.get(canonical, "it has no effect in batch mode")
+        return [
+            RiskItem(
+                type="batch_mode",
+                content=f"{canonical} is ignored in batch mode; {hint}",
+                line=line_num,
+            )
+        ]
 
     def _check_dangerous_patterns(self, line: str, line_num: int) -> List[RiskItem]:
         """Check if a line matches dangerous patterns.

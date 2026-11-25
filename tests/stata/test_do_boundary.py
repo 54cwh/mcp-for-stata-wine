@@ -207,6 +207,8 @@ def test_mcp_stata_do_uses_async_executor_when_enabled(
         cwd=work_dir,
         monitors=[],
         is_wine=False,
+        export_graphs=False,
+        graph_formats=("png",),
     )
     fake_executor.execute_dofile_async.assert_awaited_once_with(
         dofile,

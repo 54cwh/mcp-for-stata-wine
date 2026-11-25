@@ -132,6 +132,10 @@ def handle_tool(args: Namespace) -> int:
                 tool_context="cli",
                 **config_kwargs,
             )
+        elif args.tool_action == "info":
+            from ..api.stata_info import stata_info
+
+            result = stata_info(**config_kwargs)
         elif args.tool_action == "data-info":
             result = get_data_info(
                 data_path=args.data_path,
