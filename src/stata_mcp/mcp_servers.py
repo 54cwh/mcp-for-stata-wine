@@ -384,12 +384,17 @@ def _format_stata_do_result(
     text_log: str,
 ) -> Dict[str, Any]:
     graph_paths = log_file_path_mapping.pop("graphs", [])
+    success = log_file_path_mapping.pop("success", None)
+    return_code = log_file_path_mapping.pop("return_code", None)
     result: Dict[str, Any] = {
         "log_file_path": {
             k: v.as_posix()  # avoiding issues with some AI clients that may not recognize Path objects
             for k, v in log_file_path_mapping.items()
         },
     }
+    if success is not None:
+        result["success"] = success
+        result["return_code"] = return_code
     if graph_paths:
         result["graphs"] = [
             {
@@ -455,7 +460,9 @@ def _sync_stata_do(
         timeout (float, optional): Maximum execution time in seconds. Defaults to no timeout.
 
     Returns:
-        Dict[str, Any]: "log_file_path" (text/smcl) and optionally "log_content".
+        Dict[str, Any]: "log_file_path" (text/smcl), "success" and
+            "return_code" (last ``r(NNN)`` in the log, 0 when clean), and
+            optionally "log_content" / "graphs".
 
     Examples:
         >>> stata_do("/path/to/analysis.do")

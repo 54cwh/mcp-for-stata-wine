@@ -26,6 +26,7 @@ from ...observability import debug_step
 from ...utils import get_nowtime
 
 LOG_FILE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{1,128}$")
+RETURN_CODE_PATTERN = re.compile(r"^r\((\d+)\);", re.MULTILINE)
 RASTER_GRAPH_FORMATS = {"png", "jpg", "jpeg", "tif", "tiff"}
 
 
@@ -176,6 +177,12 @@ class StataDo:
                             timeout,
                         )
                     result = {"text": log_file}
+
+                # Batch Stata exits 0 even when the do-file fails; the return
+                # code only exists in the log, so surface it on every run.
+                return_code = self._read_return_code(result["text"])
+                result["success"] = return_code == 0
+                result["return_code"] = return_code
         except BaseException as error:
             with debug_step(
                 "stata_do.audit_finalize",
@@ -274,6 +281,8 @@ class StataDo:
                 artifacts[f"{log_type}_log_path"] = value.as_posix()
             elif log_type == "graphs":
                 artifacts["graphs"] = [path.as_posix() for path in value]
+            else:
+                artifacts[log_type] = value
         audit_context.artifacts.update(artifacts)
         if owns_run:
             audit_context.store.finish_run(
@@ -643,6 +652,16 @@ class StataDo:
     def _batch_auto_log(self, batch_file: Path) -> Path:
         """``/e do x.do`` writes ``x.log`` in the process working directory."""
         return self.cwd / f"{batch_file.stem}.log"
+
+    @staticmethod
+    def _read_return_code(log_file: Path) -> int:
+        """Return the last ``r(NNN);`` code printed in the log (0 when clean)."""
+        try:
+            text = Path(log_file).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return 0
+        codes = RETURN_CODE_PATTERN.findall(text)
+        return int(codes[-1]) if codes else 0
 
     def _prepare_graph_dir(self, log_name: str) -> Path:
         """Return a clean per-run directory for exported graphs."""

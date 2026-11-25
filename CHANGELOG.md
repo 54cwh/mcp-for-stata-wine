@@ -10,6 +10,8 @@
 - **Wine SMCL**: `stata_do` writes the `.smcl` log alongside the text log on the Wine path, matching native Unix behavior.
 - **Readable Logs**: every run applies `set more off` and `set linesize 255` before the do-file, so long paths and wide tables no longer arrive split across `> ` continuation lines.
 - **Graph Width**: `[GRAPH] WIDTH` sets the pixel width for raster graph exports (`0` keeps Stata's default).
+- **Run Status**: `stata_do` now returns `success` and `return_code` on every run. Batch Stata exits 0 even on failure, so the executor reads the last `r(NNN);` from the log; agents can branch without opening the log.
+- **Batch-mode Guard**: `findit` joins the GUI-only commands rejected in batch profiles.
 - **Wine cwd**: the Wine wrapper do-file now `cd`s into the project before opening logs, so absolute POSIX paths written inside a do-file (`log using "/tmp/x"`, `use "/home/..."`) resolve via `Z:` instead of failing with r(603).
 - **Config**: `STATA_MCP__WINE_PREFIX` and `STATA_MCP__WINE_STATA_EXE` are now read by the server (previously only by `scripts/stata-wine`) to locate help files.
 

@@ -118,6 +118,7 @@ _BATCH_IGNORED_ALIASES: dict[str, tuple[str, ...]] = {
     "doedit": ("doe", "doed", "doedi", "doedit"),
     "help": ("help",),
     "search": ("sear", "searc", "search"),
+    "findit": ("findit",),
     "db": ("db",),
     "window": ("window", "win"),
 }
@@ -135,6 +136,7 @@ BATCH_IGNORED_HINTS: dict[str, str] = {
     "doedit": "batch mode has no do-file editor; edit the file directly",
     "help": "use the help tool to read documentation",
     "search": "use the help tool or the documentation instead",
+    "findit": "use the help tool or search the web instead",
     "db": "dialog boxes are unavailable in batch mode",
     "window": "window management is unavailable in batch mode",
 }

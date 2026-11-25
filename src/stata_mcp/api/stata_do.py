@@ -170,11 +170,16 @@ def _stata_do(
         return {"error": str(error)}
 
     graph_paths = log_file_path_mapping.pop("graphs", [])
+    success = log_file_path_mapping.pop("success", None)
+    return_code = log_file_path_mapping.pop("return_code", None)
     result: Dict[str, Any] = {
         "log_file_path": {
             key: value.as_posix() for key, value in log_file_path_mapping.items()
         }
     }
+    if success is not None:
+        result["success"] = success
+        result["return_code"] = return_code
     if graph_paths:
         result["graphs"] = [
             {

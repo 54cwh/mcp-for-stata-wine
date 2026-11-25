@@ -104,7 +104,7 @@ Dictionary containing execution metadata and optional log payload:
   "log_content": {"text": "<error_log_text_or_placeholder>", "smcl": "<smcl_path>"}
 }
 ```
-The `log_content` key is only present when `read_log_when_error=True`. Error condition returns: `{"error": "<exception_message>"}`.
+The result always carries `success` (`false` when the log contains an `r(NNN);` line) and `return_code` (the last such code, `0` when clean), because batch Stata exits 0 even when a do-file fails. The `log_content` key is only present when `read_log_when_error=True`. Error condition returns: `{"error": "<exception_message>"}`.
 
 **Operational Examples**:
 ```python

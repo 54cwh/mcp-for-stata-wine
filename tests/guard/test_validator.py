@@ -321,3 +321,10 @@ def test_non_batch_profiles_allow_browse() -> None:
     )
 
     assert report.is_safe is True
+
+
+def test_batch_mode_blocks_findit() -> None:
+    report = GuardValidator().validate("findit regression\n", config=_batch_config())
+
+    contents = [item.content for item in report.dangerous_items if item.type == "batch_mode"]
+    assert any("findit is ignored in batch mode" in content for content in contents)

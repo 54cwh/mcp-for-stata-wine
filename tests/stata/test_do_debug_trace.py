@@ -63,7 +63,9 @@ def test_sync_stata_do_records_validation_snapshot_execution_and_finalize(
 
     result = executor.execute_dofile(dofile, log_file_name="analysis")
 
-    assert result == {"text": log_dir / "analysis.log"}
+    assert result["text"] == log_dir / "analysis.log"
+    assert result["success"] is True
+    assert result["return_code"] == 0
     events = _read_events(artifact_root)
     _assert_completed_steps(
         events,
@@ -110,7 +112,9 @@ def test_async_stata_do_records_snapshot_execution_and_finalize(
         executor.execute_dofile_async(dofile, log_file_name="analysis")
     )
 
-    assert result == {"text": log_dir / "analysis.log"}
+    assert result["text"] == log_dir / "analysis.log"
+    assert result["success"] is True
+    assert result["return_code"] == 0
     events = _read_events(artifact_root)
     _assert_completed_steps(
         events,

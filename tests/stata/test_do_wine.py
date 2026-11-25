@@ -263,7 +263,7 @@ class TestWineBatchEnvironment:
         )
 
         assert "name(smcl_log)" not in captured["wrapper"]
-        assert set(result) == {"text"}
+        assert "smcl" not in result
 
     def test_to_wine_path_rejects_string_breaking_characters(self):
         with pytest.raises(ValueError, match="rejects quotes"):
@@ -422,3 +422,44 @@ class TestWineLogSettings:
         )
         assert "width(1600)" in png_line
         assert "width(" not in svg_line
+
+
+class TestWineReturnCode:
+    def test_clean_run_reports_success(self, monkeypatch, executor, dofile):
+        monkeypatch.setattr(
+            "stata_mcp.stata.stata_do.do.subprocess.Popen",
+            lambda cmd, **kwargs: _FakePopen(),
+        )
+
+        result = executor.execute_dofile(dofile, log_file_name="wine_ok")
+
+        assert result["success"] is True
+        assert result["return_code"] == 0
+
+    def test_failed_run_reports_last_return_code(self, monkeypatch, executor, dofile):
+        def fake_popen(cmd, **kwargs):
+            text_log = executor.log_file_path / "wine_fail.log"
+            text_log.write_text(
+                ". regress price mpg\nr(111);\n. summarize\nr(198);\n",
+                encoding="utf-8",
+            )
+            return _FakePopen()
+
+        monkeypatch.setattr(
+            "stata_mcp.stata.stata_do.do.subprocess.Popen", fake_popen
+        )
+
+        result = executor.execute_dofile(dofile, log_file_name="wine_fail")
+
+        assert result["success"] is False
+        assert result["return_code"] == 198
+
+    def test_missing_log_is_treated_as_success(self, monkeypatch, executor, dofile):
+        monkeypatch.setattr(
+            "stata_mcp.stata.stata_do.do.subprocess.Popen",
+            lambda cmd, **kwargs: _FakePopen(),
+        )
+
+        result = executor.execute_dofile(dofile, log_file_name="wine_nolog")
+
+        assert result["return_code"] == 0

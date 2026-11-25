@@ -55,7 +55,9 @@ def test_stata_do_reuses_middleware_run_and_executes_snapshot(
     executed_path = fake_execute.call_args.args[0]
     assert executed_path.parent == base_path / "snapshot" / "objects"
     assert executed_path.read_text(encoding="utf-8") == "display 1\n"
-    assert result == {"text": log_path / "run.log"}
+    assert result["text"] == log_path / "run.log"
+    assert result["success"] is True
+    assert result["return_code"] == 0
     metadata = _read_jsonl(base_path / "snapshot" / "metadata.jsonl")
     assert metadata[0]["run_id"] == run.run_id
     assert metadata[0]["original_path"].endswith("analysis file.do")
@@ -122,6 +124,8 @@ def test_async_stata_do_reuses_middleware_run(
 
     executed_path = fake_execute.await_args.args[0]
     assert executed_path.parent == base_path / "snapshot" / "objects"
-    assert result == {"text": log_path / "run.log"}
+    assert result["text"] == log_path / "run.log"
+    assert result["success"] is True
+    assert result["return_code"] == 0
     metadata = _read_jsonl(base_path / "snapshot" / "metadata.jsonl")
     assert metadata[0]["run_id"] == run.run_id

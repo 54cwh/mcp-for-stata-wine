@@ -94,6 +94,10 @@ class AsyncStataDo(StataDo):
                 self._finish_audited_failure(audit_context, owns_run, error)
             raise
 
+        return_code = self._read_return_code(result["text"])
+        result["success"] = return_code == 0
+        result["return_code"] = return_code
+
         with debug_step(
             "stata_do.audit_finalize",
             tool="stata_do",

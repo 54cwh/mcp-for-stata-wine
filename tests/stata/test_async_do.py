@@ -119,7 +119,9 @@ def test_execute_dofile_async_generates_text_only_when_smcl_disabled(
         )
     )
 
-    assert result == {"text": tmp_path / "run.log"}
+    assert result["text"] == tmp_path / "run.log"
+    assert result["success"] is True
+    assert result["return_code"] == 0
     command_text = tracker["commands"][0].decode("utf-8")
     assert "run.log" in command_text
     assert "run.smcl" not in command_text
