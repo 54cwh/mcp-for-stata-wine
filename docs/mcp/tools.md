@@ -387,4 +387,4 @@ Captured files are reported in the `stata_do` result:
 }
 ```
 
-Control it with `[GRAPH] EXPORT` (default `true`) and `[GRAPH] FORMAT` (`png`, `svg`, or `both`).
+Control it with `[GRAPH] EXPORT` (default `true`), `[GRAPH] FORMAT` (`png`, `svg`, or `both`), and `[GRAPH] WIDTH` (pixels for raster formats, `0` keeps Stata's default).

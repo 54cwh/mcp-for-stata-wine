@@ -26,6 +26,7 @@ from ...observability import debug_step
 from ...utils import get_nowtime
 
 LOG_FILE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{1,128}$")
+RASTER_GRAPH_FORMATS = {"png", "jpg", "jpeg", "tif", "tiff"}
 
 
 class StataDo:
@@ -39,7 +40,8 @@ class StataDo:
                  audit_interface: str = "runtime",
                  is_wine: bool = False,
                  export_graphs: bool = False,
-                 graph_formats: tuple[str, ...] = ("png",)):
+                 graph_formats: tuple[str, ...] = ("png",),
+                 graph_width: int = 0):
         """
         Initialize Stata executor
 
@@ -54,6 +56,7 @@ class StataDo:
             is_wine: Whether Stata is a Windows build driven through Wine.
             export_graphs: Export graphs created by the run (Wine/batch only).
             graph_formats: Image formats to export ("png", "svg").
+            graph_width: Pixel width for raster graph exports (0 = Stata default).
         """
         self.stata_cli = stata_cli
         self.log_file_path = log_file_path
@@ -65,6 +68,7 @@ class StataDo:
         self.is_wine = bool(is_wine)
         self.export_graphs = bool(export_graphs)
         self.graph_formats = tuple(formats for formats in graph_formats if formats)
+        self.graph_width = max(int(graph_width), 0)
         self.cwd = cwd or Path.cwd()
         self.monitors = monitors or []
         self.IS_MONITOR = len(self.monitors) > 0
@@ -410,6 +414,7 @@ class StataDo:
         working_dir: Path | str | None = None,
         graph_dir: Path | str | None = None,
         graph_formats: tuple[str, ...] = ("png",),
+        graph_width: int = 0,
     ) -> Path:
         """Atomically create and write a random Windows wrapper do-file.
 
@@ -437,6 +442,12 @@ class StataDo:
                 file.write("capture log close\n")
                 if working_dir is not None:
                     file.write(f'cd "{working_dir}"\n')
+                # Stata wraps output at 80 columns by default; wide tables and
+                # long paths then arrive split across `> ` lines, which hurts
+                # both log readers and error matching. The console in the
+                # VS Code extension applies the same two settings.
+                file.write("set more off\n")
+                file.write("set linesize 255\n")
                 file.write(
                     f'log using "{log_file}", {replace_option}name(text_log)\n'
                 )
@@ -452,9 +463,14 @@ class StataDo:
                     file.write("    foreach _stata_mcp_g in `r(list)' {\n")
                     for graph_format in graph_formats:
                         target = f"{graph_dir}/`_stata_mcp_g'.{graph_format}"
+                        width_option = (
+                            f" width({graph_width})"
+                            if graph_width and graph_format in RASTER_GRAPH_FORMATS
+                            else ""
+                        )
                         file.write(
                             f'        quietly graph export "{target}", '
-                            "name(`_stata_mcp_g') replace\n"
+                            f"name(`_stata_mcp_g') replace{width_option}\n"
                         )
                     file.write("    }\n")
                     file.write("}\n")
@@ -523,6 +539,8 @@ class StataDo:
 
             commands = f"""
             capture log close
+            quietly set more off
+            quietly set linesize 255
             {self.generate_log_command(log_file, is_replace)}
             {self.generate_log_command(smcl_file, is_replace, 'smcl') if enable_smcl else ''}
             do "{dofile_path}"
@@ -622,10 +640,9 @@ class StataDo:
             )
         return f"Z:{resolved}"
 
-    @staticmethod
-    def _batch_auto_log(batch_file: Path) -> Path:
-        """``/e do x.do`` makes Stata write ``x.log`` next to the do-file."""
-        return batch_file.with_suffix(".log")
+    def _batch_auto_log(self, batch_file: Path) -> Path:
+        """``/e do x.do`` writes ``x.log`` in the process working directory."""
+        return self.cwd / f"{batch_file.stem}.log"
 
     def _prepare_graph_dir(self, log_name: str) -> Path:
         """Return a clean per-run directory for exported graphs."""
@@ -639,10 +656,9 @@ class StataDo:
                     logging.warning("Failed to clear stale graph %s: %s", stale, error)
         return graph_dir
 
-    @classmethod
-    def _read_batch_failure_log(cls, batch_file: Path, limit: int = 2000) -> str:
+    def _read_batch_failure_log(self, batch_file: Path, limit: int = 2000) -> str:
         try:
-            text = cls._batch_auto_log(batch_file).read_text(
+            text = self._batch_auto_log(batch_file).read_text(
                 encoding="utf-8", errors="replace"
             ).strip()
         except OSError:
@@ -676,6 +692,7 @@ class StataDo:
             working_dir=self._to_wine_path(self.cwd),
             graph_dir=self._to_wine_path(graph_dir) if graph_dir else None,
             graph_formats=self.graph_formats,
+            graph_width=self.graph_width,
         )
         proc: Optional[subprocess.Popen] = None
         try:
@@ -789,6 +806,8 @@ class StataDo:
 
             commands = f"""
             capture log close
+            quietly set more off
+            quietly set linesize 255
             {self.generate_log_command(log_file, is_replace)}
             {self.generate_log_command(smcl_file, is_replace, 'smcl') if enable_smcl else ''}
             do "{dofile_path}"

@@ -1231,6 +1231,17 @@ class Config:
         return ("png",)
 
     @property
+    def GRAPH_WIDTH(self) -> int:
+        """Pixel width for raster graph exports; 0 keeps Stata's default."""
+        return self._get_config_value(
+            config_keys=["GRAPH", "WIDTH"],
+            env_var="STATA_MCP__GRAPH_WIDTH",
+            default=0,
+            converter=self._to_int,
+            validator=lambda x: isinstance(x, int) and x >= 0,
+        )
+
+    @property
     def IS_GUARD(self) -> bool:
         return self._get_config_value(
             config_keys=["SECURITY", "IS_GUARD"],

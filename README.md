@@ -396,7 +396,8 @@ IS_WINE = true
   `graph export "out.png", name(mine) replace`. An unnamed graph is not
   reachable from batch mode and raises r(693). The server captures graphs
   automatically after each run (`[GRAPH] EXPORT`, default on) and reports them
-  in the `stata_do` result under `graphs`.
+  in the `stata_do` result under `graphs`; `[GRAPH] WIDTH` sets the raster
+  pixel width.
 - GUI-only commands (`browse`, `edit`, `view`, `doedit`, `help`, `search`,
   `db`, `window`) are silently ignored in batch mode, so the security guard
   rejects them with a pointer to the replacement tool.

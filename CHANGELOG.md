@@ -8,6 +8,8 @@
 - **stata_info**: new tool reporting Stata version, edition, flavor, memory, working directory, adopath, and whether runs execute in batch mode, plus a `supports` map for version-dependent features. Available as `stata-mcp tool info` too.
 - **Batch-mode Guard**: GUI-only commands (`browse`, `edit`, `view`, `doedit`, `help`, `search`, `db`, `window`) are rejected in batch profiles with a pointer to the MCP tool that covers the need, instead of silently doing nothing.
 - **Wine SMCL**: `stata_do` writes the `.smcl` log alongside the text log on the Wine path, matching native Unix behavior.
+- **Readable Logs**: every run applies `set more off` and `set linesize 255` before the do-file, so long paths and wide tables no longer arrive split across `> ` continuation lines.
+- **Graph Width**: `[GRAPH] WIDTH` sets the pixel width for raster graph exports (`0` keeps Stata's default).
 - **Wine cwd**: the Wine wrapper do-file now `cd`s into the project before opening logs, so absolute POSIX paths written inside a do-file (`log using "/tmp/x"`, `use "/home/..."`) resolve via `Z:` instead of failing with r(603).
 - **Config**: `STATA_MCP__WINE_PREFIX` and `STATA_MCP__WINE_STATA_EXE` are now read by the server (previously only by `scripts/stata-wine`) to locate help files.
 

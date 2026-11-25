@@ -52,6 +52,8 @@ hash_length = 12
 EXPORT = true
 # png, svg, or both.
 FORMAT = "png"
+# Pixel width for raster exports (png/jpg/tif); 0 keeps Stata's default.
+WIDTH = 0
 
 [STATA]
 # Command the server spawns to run Stata. Leave empty to auto-detect a native

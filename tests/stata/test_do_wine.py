@@ -277,7 +277,8 @@ class TestWineBatchEnvironment:
         def fake_popen(cmd, **kwargs):
             batch = _batch_path(cmd)
             captured["batch"] = batch
-            batch.with_suffix(".log").write_text(
+            auto_log = executor.cwd / f"{batch.stem}.log"
+            auto_log.write_text(
                 ". log using ...\ninvalid syntax\nr(198);", encoding="utf-8"
             )
             return _FakePopen()
@@ -289,7 +290,8 @@ class TestWineBatchEnvironment:
         with pytest.raises(RuntimeError, match=r"r\(198\)"):
             executor.execute_dofile(dofile, log_file_name="wine_no_log")
 
-        assert not captured["batch"].with_suffix(".log").exists()
+        auto_log = executor.cwd / f"{captured['batch'].stem}.log"
+        assert not auto_log.exists()
 
 
 class TestWineGraphCapture:
@@ -365,3 +367,58 @@ class TestWineGraphCapture:
         executor.execute_dofile(dofile, log_file_name="wine_clean")
 
         assert not (graph_dir / "old.png").exists()
+
+
+class TestWineLogSettings:
+    def test_wrapper_sets_readable_log_width(self, monkeypatch, executor, dofile):
+        captured = {}
+
+        def fake_popen(cmd, **kwargs):
+            captured["wrapper"] = _batch_path(cmd).read_text(encoding="utf-8")
+            return _FakePopen()
+
+        monkeypatch.setattr(
+            "stata_mcp.stata.stata_do.do.subprocess.Popen", fake_popen
+        )
+
+        executor.execute_dofile(dofile, log_file_name="wine_settings")
+
+        wrapper = captured["wrapper"]
+        assert "set more off" in wrapper
+        assert "set linesize 255" in wrapper
+
+    def test_graph_width_applies_to_raster_formats_only(
+        self, monkeypatch, tmp_path, dofile
+    ):
+        log_dir = tmp_path / "logs"
+        log_dir.mkdir()
+        executor = StataDo(
+            stata_cli="/usr/local/bin/stata-wine",
+            log_file_path=log_dir,
+            is_unix=True,
+            cwd=tmp_path,
+            is_wine=True,
+            export_graphs=True,
+            graph_formats=("png", "svg"),
+            graph_width=1600,
+        )
+        captured = {}
+
+        def fake_popen(cmd, **kwargs):
+            captured["wrapper"] = _batch_path(cmd).read_text(encoding="utf-8")
+            return _FakePopen()
+
+        monkeypatch.setattr(
+            "stata_mcp.stata.stata_do.do.subprocess.Popen", fake_popen
+        )
+
+        executor.execute_dofile(dofile, log_file_name="wine_width")
+
+        png_line = next(
+            line for line in captured["wrapper"].splitlines() if ".png" in line
+        )
+        svg_line = next(
+            line for line in captured["wrapper"].splitlines() if ".svg" in line
+        )
+        assert "width(1600)" in png_line
+        assert "width(" not in svg_line

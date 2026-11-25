@@ -139,6 +139,7 @@ def _stata_do(
         is_wine=getattr(runtime, "is_wine", False),
         export_graphs=getattr(runtime.config, "GRAPH_EXPORT", False),
         graph_formats=getattr(runtime.config, "GRAPH_FORMATS", ("png",)),
+        graph_width=getattr(runtime.config, "GRAPH_WIDTH", 0),
     )
 
     try:

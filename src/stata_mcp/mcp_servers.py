@@ -494,6 +494,7 @@ def _sync_stata_do(
         is_wine=getattr(config, "IS_WINE", False),
         export_graphs=getattr(config, "GRAPH_EXPORT", False),
         graph_formats=getattr(config, "GRAPH_FORMATS", ("png",)),
+        graph_width=getattr(config, "GRAPH_WIDTH", 0),
     )
 
     # Execute the do-file and get log file path
@@ -559,6 +560,7 @@ async def _async_stata_do(
         is_wine=getattr(config, "IS_WINE", False),
         export_graphs=getattr(config, "GRAPH_EXPORT", False),
         graph_formats=getattr(config, "GRAPH_FORMATS", ("png",)),
+        graph_width=getattr(config, "GRAPH_WIDTH", 0),
     )
 
     logging.info("Try to running dofile.")

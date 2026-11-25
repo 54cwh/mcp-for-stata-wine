@@ -178,6 +178,8 @@ class AsyncStataDo(StataDo):
             smcl_file = self.generate_log_file(log_name, 'smcl')
             commands = f"""
             capture log close
+            quietly set more off
+            quietly set linesize 255
             {self.generate_log_command(log_file, is_replace)}
             {self.generate_log_command(smcl_file, is_replace, 'smcl') if enable_smcl else ''}
             do "{dofile_path}"
