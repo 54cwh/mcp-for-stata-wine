@@ -15,6 +15,8 @@
 - **Wine cwd**: the Wine wrapper do-file now `cd`s into the project before opening logs, so absolute POSIX paths written inside a do-file (`log using "/tmp/x"`, `use "/home/..."`) resolve via `Z:` instead of failing with r(603).
 - **Help Paths**: `[HELP] ADDITIONAL_PATHS` / `STATA_MCP__HELP_ADDITIONAL_PATHS` adds ado directories to the Wine help index, covering community packages installed outside the default tree.
 - **Config**: `STATA_MCP__WINE_PREFIX` and `STATA_MCP__WINE_STATA_EXE` are now read by the server (previously only by `scripts/stata-wine`) to locate help files.
+- **Log Search**: `read_log` accepts `pattern` and `context`, returning matching lines as `line_number: text` (or filtered command/result entries for `dict`). Available as `--pattern` / `--context` on the CLI.
+- **Data Filter**: `get_data_info` accepts a Stata-style `filter` (comparisons, `& | !`, arithmetic, `missing/inlist/inrange/abs/lower/upper/strpos`) and `offset` for paged previews. Filters are evaluated with a restricted namespace and validated identifiers; filtered runs bypass the cache.
 
 ### Fixed
 - **Doctor on Wine**: `stata-mcp doctor` now resolves `STATA_MCP__STATA_CLI` like the rest of the server, runs its execution probe through `StataDo` (so Wine/Windows batch mode works), and adds a `wine` check for the prefix, Windows Stata binary, `wine`, and `xvfb-run`.

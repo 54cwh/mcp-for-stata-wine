@@ -21,6 +21,8 @@ def read_log(
     encoding: str = "utf-8",
     *,
     output_format: Literal["full", "core", "dict"] = "core",
+    pattern: str | None = None,
+    context: int = 0,
     config_file: str | Path | None = None,
 ) -> str:
     """Read a Stata log file as a direct one-shot utility."""
@@ -53,17 +55,30 @@ def read_log(
     if not path.exists():
         raise FileNotFoundError(f"The file at {file_path} does not exist.")
 
+    from ..stata.builtin_tools.stata_log.search import search_entries, search_text
+
+    def finish(text: str) -> str:
+        return search_text(text, pattern, context) if pattern else text
+
     if not runtime.config.ENABLE_STRUCTURED_LOG:
-        return path.read_text(encoding=encoding)
+        return finish(path.read_text(encoding=encoding))
 
     if path.suffix.lower() not in {".log", ".smcl"}:
-        return path.read_text(encoding=encoding)
+        return finish(path.read_text(encoding=encoding))
 
     log_reader = StataLog.from_path(path, encoding=encoding)
     if output_format == "full":
-        return log_reader.read_plain_text()
+        return finish(log_reader.read_plain_text())
     if output_format == "core":
-        return log_reader.read_without_framework()
+        return finish(log_reader.read_without_framework())
     if output_format == "dict":
-        return str(log_reader.read_as_dict())
+        dict_data = log_reader.read_as_dict()
+        if pattern:
+            entries = search_entries(
+                dict_data.get("command_result_list", []), pattern
+            )
+            if not entries:
+                return f"No log entries matched pattern {pattern!r}."
+            dict_data["command_result_list"] = entries
+        return str(dict_data)
     raise ValueError(f"Invalid output_format: {output_format}")

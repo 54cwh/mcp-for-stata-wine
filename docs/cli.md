@@ -208,6 +208,9 @@ stata-mcp tool data-info /path/to/data.dta
 
 # Read a generated log file
 stata-mcp tool read-log /path/to/output.log
+
+# Find the failing command and its return code in a long log
+stata-mcp tool read-log /path/to/output.log --pattern 'r\(\d+\)' --context 3
 ```
 
 Tool subcommands:
@@ -215,8 +218,8 @@ Tool subcommands:
 - `stata-mcp tool do <dofile_path> [--log-file-name <name>] [--is-read-log true|false] [--is-replace-log true|false] [--enable-smcl true|false] [--timeout <seconds>]`
 - `stata-mcp tool help <command> [--replace true|false]`
 - `stata-mcp tool info`
-- `stata-mcp tool data-info <data_path> [--vars-list var1 var2 ...]`
-- `stata-mcp tool read-log <log_path> [--output-format full|core|dict]`
+- `stata-mcp tool data-info <data_path> [--vars-list var1 var2 ...] [--filter <expr>] [--offset <rows>]`
+- `stata-mcp tool read-log <log_path> [--output-format full|core|dict] [--pattern <regex>] [--context <n>]`
 
 > Note: `--is-read-log true` returns log content only when the underlying execution reports a Stata return-code error.
 

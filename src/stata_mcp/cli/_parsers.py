@@ -272,6 +272,18 @@ def add_tool_parser(subparsers: argparse._SubParsersAction) -> argparse.Argument
             "(default: CLI.TOOLS.DATA_INFO.heads or 5)"
         ),
     )
+    tool_data_info_parser.add_argument(
+        "--filter",
+        default=None,
+        help='Stata-style row filter, e.g. "foreign == 1 & price > 5000"',
+    )
+    tool_data_info_parser.add_argument(
+        "--offset",
+        type=int,
+        default=0,
+        metavar="ROWS",
+        help="Skip this many rows before the preview (default: 0)",
+    )
 
     tool_read_log_parser = tool_subparsers.add_parser(
         "read-log",
@@ -289,6 +301,17 @@ def add_tool_parser(subparsers: argparse._SubParsersAction) -> argparse.Argument
         choices=["full", "core", "dict"],
         default="core",
         help="Output format for supported .log and .smcl files (default: core)",
+    )
+    tool_read_log_parser.add_argument(
+        "--pattern",
+        default=None,
+        help="Search the log for this regex (literal if invalid) instead of dumping it",
+    )
+    tool_read_log_parser.add_argument(
+        "--context",
+        type=int,
+        default=0,
+        help="Lines of context around each --pattern match (default: 0)",
     )
     return tool_parser
 

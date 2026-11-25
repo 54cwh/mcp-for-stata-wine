@@ -79,6 +79,8 @@ def test_get_data_info_stdio_schema_and_response_remain_compatible(
             "vars_list",
             "encoding",
             "head",
+            "filter",
+            "offset",
         }
         assert tool.output_schema["properties"]["result"]["type"] == "string"
         assert result.is_error is False

@@ -142,6 +142,8 @@ def handle_tool(args: Namespace) -> int:
                 vars_list=args.vars_list,
                 encoding=args.encoding,
                 head=getattr(args, "heads", None),
+                filter_expr=getattr(args, "filter", None),
+                offset=getattr(args, "offset", 0),
                 tool_context="cli",
                 **config_kwargs,
             )
@@ -150,6 +152,8 @@ def handle_tool(args: Namespace) -> int:
                 file_path=args.file_path,
                 encoding=args.encoding,
                 output_format=args.output_format,
+                pattern=args.pattern,
+                context=args.context,
                 **config_kwargs,
             )
         else:

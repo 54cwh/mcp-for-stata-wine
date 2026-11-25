@@ -679,6 +679,8 @@ def get_data_info(
     vars_list: List[str] | None = None,
     encoding: str = "utf-8",
     head: int | None = None,
+    filter: str | None = None,
+    offset: int = 0,
     ctx: Context | None = None,
 ) -> str:
     """
@@ -689,6 +691,13 @@ def get_data_info(
         vars_list (List[str] | None): Optional variable subset (default: all variables).
         encoding (str): File encoding (ignored for .dta).
         head (int): Number of preview rows (0 = disabled).
+        filter (str | None): Optional Stata-style row filter, e.g.
+            ``"foreign == 1 & price > 5000"``. Supports comparisons,
+            ``& | !``, parentheses, arithmetic, and ``missing/inlist/inrange/
+            abs/lower/upper/strpos``. Summary and preview describe the
+            filtered rows; ``overview.obs_before_filter`` keeps the original
+            count.
+        offset (int): Skip this many rows before the preview (for paging).
 
     Returns:
         str: JSON string with overview, variable details, and config.
@@ -776,6 +785,8 @@ def get_data_info(
                 encoding=encoding,
                 config_file=None,
                 head=head,
+                filter_expr=filter,
+                offset=offset,
                 tool_context="mcp",
                 request_id=request_id,
             )
@@ -830,6 +841,8 @@ def read_log(
     *,
     output_format: Literal["full", "core", "dict"] = "core",
     lines: int = 0,
+    pattern: str | None = None,
+    context: int = 0,
 ) -> str:
     """
     Read a Stata log file (.log or .smcl) and return its content.
@@ -845,6 +858,9 @@ def read_log(
             - 0 (default): return all content.
             - > 0: return first N items (lines for full/core, entries for dict).
             - < 0: return last |N| items (lines for full/core, entries for dict).
+        pattern (str | None): Optional regex (case-insensitive; literal if the
+            regex is invalid) used to search the log instead of dumping it.
+        context (int): Lines of context around each match when `pattern` is set.
 
     Returns:
         str: The content of the file as a string.
@@ -891,33 +907,46 @@ def read_log(
     if not path.exists():
         raise FileNotFoundError(f"The file at {file_path} does not exist.")
 
+    from .stata.builtin_tools.stata_log.search import search_entries, search_text
+
     if config.ENABLE_STRUCTURED_LOG:
         from .stata import StataLog
 
         loger = StataLog.from_path(file_path, encoding=encoding)
         if output_format not in ["full", "core", "dict"]:
             raise ValueError(f"Invalid output_format: {output_format}")
-        elif output_format == "full":
-            return _trim_lines(loger.read_plain_text(), lines)
-        elif output_format == "core":
-            return _trim_lines(loger.read_without_framework(), lines)
-        elif output_format == "dict":
+        if output_format == "dict":
             dict_data = loger.read_as_dict()
-            if lines == 0:
-                return str(dict_data)
+            entries = search_entries(
+                dict_data.get("command_result_list", []), pattern or ""
+            )
+            if pattern and not entries:
+                return f"No log entries matched pattern {pattern!r}."
             if lines > 0:
-                return str(dict_data[:lines])
-            return str(dict_data[-abs(lines):])
-    # If structured log parsing is disabled, read the file directly.
-    try:
-        with open(path, "r", encoding=encoding) as file:
-            log_content = file.read()
-        logging.info("Successfully read file.")
-        return _trim_lines(log_content, lines)
-    except IOError as e:
-        logging.error("Failed to read file.")
-        logging.debug("Read file exception details: %s", e)
-        raise IOError(f"An error occurred while reading the file: {e}")
+                entries = entries[:lines]
+            elif lines < 0:
+                entries = entries[-abs(lines):]
+            dict_data["command_result_list"] = entries
+            return str(dict_data)
+        text = (
+            loger.read_plain_text()
+            if output_format == "full"
+            else loger.read_without_framework()
+        )
+    else:
+        # If structured log parsing is disabled, read the file directly.
+        try:
+            with open(path, "r", encoding=encoding) as file:
+                text = file.read()
+            logging.info("Successfully read file.")
+        except IOError as e:
+            logging.error("Failed to read file.")
+            logging.debug("Read file exception details: %s", e)
+            raise IOError(f"An error occurred while reading the file: {e}")
+
+    if pattern:
+        text = search_text(text, pattern, context)
+    return _trim_lines(text, lines)
 
 
 def stata_info(ctx: Context | None = None) -> Dict[str, Any]:

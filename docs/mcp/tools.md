@@ -15,7 +15,9 @@ and Linux always register the tool. See [Beta Configuration](../beta.md).
 def get_data_info(data_path: str | Path,
                   vars_list: List[str] | None = None,
                   encoding: str = "utf-8",
-                  head: int = 0) -> str:
+                  head: int = 0,
+                  filter: str | None = None,
+                  offset: int = 0) -> str:
     ...
 ```
 
@@ -28,12 +30,15 @@ def get_data_info(data_path: str | Path,
 - `vars_list`: Optional variable subset specification for selective analysis (default: null, all variables)
 - `encoding`: Character encoding for text-based formats (default: UTF-8, ignored for .dta)
 - `head`: Number of preview rows to display from the dataset (default: 0, disabled to avoid context overflow on large datasets)
+- `filter`: Optional Stata-style row filter, e.g. `"foreign == 1 & price > 5000"`. Supports comparisons, `&`/`|`/`!`, parentheses, arithmetic, and `missing()`, `inlist()`, `inrange()`, `abs()`, `lower()`, `upper()`, `strpos()`. The summary and preview describe the filtered rows.
+- `offset`: Rows to skip before the preview, for paging (default: 0)
 
 **Return Structure**:
 Serialized JSON string containing multi-layered metadata:
 ```json
 {
-  "overview": {"source": <path>, "obs": <int>, "var_numbers": <int>, "var_list": [<array>]},
+  "overview": {"source": <path>, "obs": <int>, "var_numbers": <int>, "var_list": [<array>],
+               "filter": <str>, "obs_before_filter": <int>, "preview_offset": <int>},
   "info_config": {"metrics": [<array>], "max_display": <int>, "decimal_places": <int>},
   "vars_detail": {<variable_name>: {"var": <str>, "type": <str>, "summary": {...}}},
   "saved_path": <cache_file_path>
@@ -51,6 +56,9 @@ get_data_info("https://repository.org/datasets/panel_data.xlsx")
 
 # Encoded source handling
 get_data_info("./data/legacy/latin1_data.csv", encoding="latin1")
+
+# Filtered, paged preview of one group
+get_data_info("./data/auto.dta", filter="foreign == 1 & price > 5000", head=5)
 ```
 
 **Supported Formats**:
@@ -156,7 +164,9 @@ def read_log(file_path: str,
              encoding: str = "utf-8",
              *,
              output_format: Literal["full", "core", "dict"] = "core",
-             lines: int = 0) -> str:
+             lines: int = 0,
+             pattern: str | None = None,
+             context: int = 0) -> str:
     ...
 ```
 
@@ -169,6 +179,8 @@ def read_log(file_path: str,
   - `> 0`: return first N items (lines for full/core, entries for dict)
   - `< 0`: return last |N| items (lines for full/core, entries for dict)
   - `0`: return full content
+- `pattern`: Optional regex (case-insensitive; literal when the regex is invalid) used to search the log instead of dumping it. Matching lines are returned as `line_number: text`; `dict` output filters command/result entries instead.
+- `context`: Lines of context before and after each `pattern` match (default: 0). Overlapping windows are merged.
 - `output_format`: Output format when structured parsing is enabled (optional, default: "core")
   - `full`: Raw log content without processing
   - `core`: Cleaned content with framework lines removed

@@ -45,6 +45,8 @@ def _get_data_info_impl(
     config_file: str | Path | None = None,
     *,
     head: int | None = None,
+    filter_expr: str | None = None,
+    offset: int = 0,
     tool_context: ToolContext = "api",
     request_id: str | None = None,
 ) -> str:
@@ -201,19 +203,26 @@ def _get_data_info_impl(
             request_id=active_request_id,
             attributes={"suffix": data_extension},
         ):
-            data_info = data_info_cls(
-                resolved_data_path,
-                vars_list,
-                encoding=encoding,
-                cache_dir=runtime.tmp_base_path,
-                head=resolved_head,
-                is_cache=data_info_config.is_cache,
-                metrics=data_info_config.metrics,
-                string_keep_number=data_info_config.string_keep_number,
-                decimal_places=data_info_config.decimal_places,
-                hash_length=data_info_config.hash_length,
-                request_id=active_request_id,
-            )
+            handler_kwargs = {
+                "encoding": encoding,
+                "cache_dir": runtime.tmp_base_path,
+                "head": resolved_head,
+                "is_cache": (
+                    data_info_config.is_cache and not filter_expr and offset == 0
+                ),
+                "metrics": data_info_config.metrics,
+                "string_keep_number": data_info_config.string_keep_number,
+                "decimal_places": data_info_config.decimal_places,
+                "hash_length": data_info_config.hash_length,
+                "request_id": active_request_id,
+            }
+            # Only pass the new options when used, so third-party handlers with
+            # the historical constructor signature keep working.
+            if filter_expr:
+                handler_kwargs["filter_expr"] = filter_expr
+            if offset:
+                handler_kwargs["offset"] = offset
+            data_info = data_info_cls(resolved_data_path, vars_list, **handler_kwargs)
         log_event(
             logger,
             logging.DEBUG,
@@ -308,6 +317,8 @@ def get_data_info(
     config_file: str | Path | None = None,
     *,
     head: int | None = None,
+    filter_expr: str | None = None,
+    offset: int = 0,
     tool_context: ToolContext = "api",
 ) -> str:
     """Return descriptive statistics for a supported dataset."""
@@ -317,6 +328,8 @@ def get_data_info(
         encoding=encoding,
         config_file=config_file,
         head=head,
+        filter_expr=filter_expr,
+        offset=offset,
         tool_context=tool_context,
     )
 

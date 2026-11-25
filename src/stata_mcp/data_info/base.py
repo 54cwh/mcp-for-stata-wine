@@ -183,6 +183,8 @@ class DataInfoBase(ABC):
         hash_length: int = None,
         metrics: List[str] | Tuple[str, ...] | None = None,
         head: int = 0,
+        filter_expr: str | None = None,
+        offset: int = 0,
         request_id: str | None = None,
         **kwargs
     ):
@@ -252,6 +254,9 @@ class DataInfoBase(ABC):
         self.HASH_LENGTH = int(resolved_hash_length)
         self._metrics = self._normalize_metrics(resolved_metrics)
         self._head = head
+        self._filter_expr = filter_expr
+        self._offset = max(int(offset), 0)
+        self._raw_obs: int | None = None
         self._cache_read_options = repr(kwargs)
 
         self.kwargs = kwargs  # Store additional keyword arguments for subclasses to use
@@ -419,6 +424,11 @@ class DataInfoBase(ABC):
                 },
             ):
                 data_frame = self._read_data()
+                self._raw_obs = len(data_frame)
+                if self._filter_expr:
+                    from .filter import apply_filter
+
+                    data_frame = apply_filter(data_frame, self._filter_expr)
         except Exception as error:
             log_event(
                 logger,
@@ -697,6 +707,11 @@ class DataInfoBase(ABC):
             "var_list": all_vars,
             "hash": self.hash,
         }
+        if self._filter_expr:
+            overview["filter"] = self._filter_expr
+            overview["obs_before_filter"] = self._raw_obs
+        if self._offset:
+            overview["preview_offset"] = self._offset
         info_config = {
             "metrics": self.metrics,
             "max_display": self.string_keep_number,
@@ -1023,7 +1038,8 @@ class DataInfoBase(ABC):
             return None
         df = self.df[self.vars_list]
         if self._head > 0:
-            return df.head(self._head).to_dict(orient="records")
+            window = df.iloc[self._offset : self._offset + self._head]
+            return window.to_dict(orient="records")
         return df.tail(abs(self._head)).to_dict(orient="records")
 
     def _get_var_extra_info(self, var_name: str) -> Dict[str, Any]:
